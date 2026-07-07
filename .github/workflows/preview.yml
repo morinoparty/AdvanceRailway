@@ -1,0 +1,204 @@
+name: preview.yml
+on:
+  pull_request:
+    types: [opened, synchronize, closed]
+  workflow_dispatch:
+
+permissions:
+  pull-requests: write
+  contents: read
+  id-token: write
+  attestations: write
+
+env:
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  AWS_EC2_METADATA_DISABLED: true
+  AWS_REGION: auto
+  AWS_CLI_FILE_ENCODING: UTF-8
+  AWS_DEFAULT_S3_SIGNATURE_VERSION: s3v4
+  S3_UPLOAD_BUCKET: ${{ secrets.S3_UPLOAD_BUCKET }}
+  S3_ENDPOINT: ${{ secrets.S3_ENDPOINT }}
+  PREVIEW_BASE_URL: https://moripa-ci.nikomaru.dev/advancerailway
+  PROJECT_NAME: AdvanceRailway
+  # S3 とプレビュー URL で共通利用するプロジェクトのパスプレフィックス。
+  PROJECT_PATH: advancerailway
+
+jobs:
+  # 共通の前処理：コミットSHAを取得
+  setup:
+    if: ${{ github.event.action != 'closed' }}
+    runs-on: ubuntu-latest
+    outputs:
+      commit_sha: ${{ steps.vars.outputs.commit_sha }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set short git commit SHA
+        id: vars
+        run: |
+          calculatedSha=$(git rev-parse --short HEAD)
+          echo "commit_sha=$calculatedSha" >> $GITHUB_OUTPUT
+
+  # Gradle ビルドジョブ
+  build-gradle:
+    needs: setup
+    runs-on: ubuntu-latest
+    outputs:
+      test_total: ${{ steps.publish-test-results.outputs.total }}
+      test_passed: ${{ steps.publish-test-results.outputs.passed }}
+      test_skipped: ${{ steps.publish-test-results.outputs.skipped }}
+      test_failed: ${{ steps.publish-test-results.outputs.failed }}
+      attestation_url: ${{ steps.attest.outputs.attestation-url }}
+    env:
+      COMMIT_SHORT_SHA: ${{ needs.setup.outputs.commit_sha }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        with:
+          distribution: 'temurin'
+          java-version: '25'
+
+      # Gradle キャッシュの設定（setup-gradle を使用）
+      - uses: gradle/actions/setup-gradle@8379f6a1328ee0e06e2bb424dadb7b159856a326 # v4.4.0
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/master' }}
+
+      - name: Change wrapper permissions
+        run: chmod +x ./gradlew
+
+      - name: Run tests
+        continue-on-error: true
+        run: ./gradlew test
+
+      - name: Run detekt
+        continue-on-error: true
+        run: ./gradlew detekt
+
+      - name: Build with Gradle
+        continue-on-error: true
+        run: ./gradlew build -x test
+
+      - name: Publish test results
+        id: publish-test-results
+        uses: mikepenz/action-junit-report@e08919a3b1fb83a78393dfb775a9c37f17d8eea6 # v6.0.1
+        if: success() || failure()
+        with:
+          report_paths: './**/build/test-results/test/TEST-*.xml'
+
+      - name: Prepare Gradle artifacts
+        run: |
+          mkdir -p ./gradle-artifacts/jars
+          mkdir -p ./gradle-artifacts/junit
+          mkdir -p ./gradle-artifacts/detekt
+
+          # shadowJar (all) を SHA 付きの名前へリネーム
+          jar_file=$(find ./build/libs/ -name "*-all.jar" | head -1)
+          mv "$jar_file" "./gradle-artifacts/jars/${{ env.PROJECT_NAME }}-${{ env.COMMIT_SHORT_SHA }}.jar"
+
+          cp -r ./build/reports/tests/test/* ./gradle-artifacts/junit/ || echo "No JUnit reports found"
+          cp -r ./build/reports/detekt/* ./gradle-artifacts/detekt/ || echo "No Detekt reports found"
+
+      # GitHub Attestations で署名
+      - name: Attest JAR artifacts
+        id: attest
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: './gradle-artifacts/jars/*.jar'
+
+      - name: Upload Gradle artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: gradle-artifacts
+          path: ./gradle-artifacts
+          retention-days: 1
+
+  # S3 アップロードジョブ（JAR・レポート）
+  upload-s3:
+    needs: [setup, build-gradle]
+    runs-on: ubuntu-latest
+    env:
+      COMMIT_SHORT_SHA: ${{ needs.setup.outputs.commit_sha }}
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          path: ./artifacts
+
+      - name: Prepare upload directory
+        run: |
+          mkdir -p ./upload
+          cp -r ./artifacts/gradle-artifacts/jars ./upload/ || echo "No JAR artifacts"
+          cp -r ./artifacts/gradle-artifacts/junit ./upload/ || echo "No JUnit reports"
+          cp -r ./artifacts/gradle-artifacts/detekt ./upload/ || echo "No Detekt reports"
+
+      - name: Upload to S3 (parallel)
+        run: |
+          # AWS CLIの並列リクエスト数を増やす
+          aws configure set default.s3.max_concurrent_requests 50
+
+          S3_BASE="s3://${{ env.S3_UPLOAD_BUCKET }}/${{ env.PROJECT_PATH }}/${{ env.COMMIT_SHORT_SHA }}"
+          S3_OPTS="--endpoint-url ${S3_ENDPOINT} --only-show-errors"
+
+          # JAR・レポートを並列でアップロード
+          aws s3 cp ./upload/jars $S3_BASE/jars $S3_OPTS --recursive &
+          aws s3 cp ./upload/junit $S3_BASE/junit $S3_OPTS --recursive &
+          aws s3 cp ./upload/detekt $S3_BASE/detekt $S3_OPTS --recursive &
+
+          # 全ての並列アップロードを待機
+          wait
+          echo "S3 upload completed"
+
+  # コメント作成ジョブ
+  comment:
+    needs: [setup, build-gradle, upload-s3]
+    runs-on: ubuntu-latest
+    if: ${{ github.event.action == 'opened' || github.event.action == 'synchronize' }}
+    env:
+      COMMIT_SHORT_SHA: ${{ needs.setup.outputs.commit_sha }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Get limit time
+        id: limit-time
+        run: |
+          limit_time=$(date -d "7 days" +%Y-%m-%d)
+          echo "LIMIT_TIME=$limit_time" >> $GITHUB_ENV
+
+      - name: Create comment file
+        env:
+          JAR_BASE_URL: "${{ env.PREVIEW_BASE_URL }}/${{ env.COMMIT_SHORT_SHA }}/jars"
+          JUNIT_REPORT_URL: "${{ env.PREVIEW_BASE_URL }}/${{ env.COMMIT_SHORT_SHA }}/junit/index.html"
+          DETEKT_REPORT_URL: "${{ env.PREVIEW_BASE_URL }}/${{ env.COMMIT_SHORT_SHA }}/detekt/detekt.html"
+          ATTESTATION_URL: "${{ needs.build-gradle.outputs.attestation_url }}"
+          LIMIT_TIME: ${{ env.LIMIT_TIME }}
+        run: |
+          cat << EOF > comment.md
+          ## 🚀 Preview of ${{ github.event.repository.name }}
+
+          ### 📦 Preview JAR
+          Available for 7 days (until $LIMIT_TIME)
+          | Artifact | Download |
+          |----------|----------|
+          | Plugin | [${{ env.PROJECT_NAME }}-${{ env.COMMIT_SHORT_SHA }}.jar]($JAR_BASE_URL/${{ env.PROJECT_NAME }}-${{ env.COMMIT_SHORT_SHA }}.jar) |
+
+          > 📜 **Attestation** (SLSA provenance): [Verify on GitHub]($ATTESTATION_URL) or run \`gh attestation verify <jar-file> --owner Nlkomaru\`
+
+          ### 📖 Reports
+          Available for 7 days (until $LIMIT_TIME)
+          | Resource | Link |
+          |----------|------|
+          | 🧪 JUnit Report | [Report]($JUNIT_REPORT_URL) |
+          | 🔍 Detekt Report | [Report]($DETEKT_REPORT_URL) |
+
+          ### 🧪 Test Summary
+          | Tests | Passed | Skipped | Failed |
+          |-------|--------|---------|--------|
+          | ${{ needs.build-gradle.outputs.test_total }} | ${{ needs.build-gradle.outputs.test_passed }} ✅ | ${{ needs.build-gradle.outputs.test_skipped }} ⏭️ | ${{ needs.build-gradle.outputs.test_failed }} ❌ |
+          EOF
+
+      - name: Create PR comment
+        run: gh pr comment ${{ github.event.number }} --body-file comment.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
