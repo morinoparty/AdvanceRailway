@@ -1,15 +1,21 @@
 [versions]
-paperVersion = "1.21.5-R0.1-SNAPSHOT"
+paperVersion = "26.1.2.build.72-stable"
 squaremapVersion = "1.3.5"
 mccoroutineVersion = "2.22.0"
 lampVersion = "3.3.6"
-koinVersion = "4.0.4"
-coroutineVersion = "1.10.2"
-serializationVersion = "1.8.1"
+koinVersion = "4.2.2"
+coroutineVersion = "1.11.0"
+serializationVersion = "1.11.0"
 csvSerializationVersion = "2.1.0"
 protocolLibVersion = "5.3.0"
-junitVersion = "5.12.2"
-arrow-ktVersion = "2.1.1"
+junitVersion = "6.1.1"
+arrow-ktVersion = "2.2.3"
+mineauthVersion = "0.2.30"
+ktorVersion = "3.5.1"
+mockbukkitVersion = "4.110.0"
+mockkVersion = "1.14.11"
+# MockBukkit 4.110.0 がターゲットとする paper-api（テスト実行時のみ使用）。
+paperTestVersion = "1.21.11-R0.1-SNAPSHOT"
 
 [libraries]
 paper-api = { group = "io.papermc.paper", name = "paper-api", version.ref = "paperVersion" }
@@ -26,13 +32,20 @@ protocolLib = { group = "com.comphenix.protocol", name = "ProtocolLib", version.
 arrow-core = { group = "io.arrow-kt", name = "arrow-core", version.ref = "arrow-ktVersion" }
 arrow-fx-coroutines = { group = "io.arrow-kt", name = "arrow-fx-coroutines", version.ref = "arrow-ktVersion" }
 junit-jupiter = { group = "org.junit.jupiter", name = "junit-jupiter", version.ref = "junitVersion" }
+junit-platform-launcher = { group = "org.junit.platform", name = "junit-platform-launcher" }
+mineauth-api = { group = "party.morino", name = "mineauth-api", version.ref = "mineauthVersion" }
+ktor-http = { group = "io.ktor", name = "ktor-http", version.ref = "ktorVersion" }
+mockbukkit = { group = "org.mockbukkit.mockbukkit", name = "mockbukkit-v1.21", version.ref = "mockbukkitVersion" }
+mockk = { group = "io.mockk", name = "mockk", version.ref = "mockkVersion" }
+paper-api-test = { group = "io.papermc.paper", name = "paper-api", version.ref = "paperTestVersion" }
 
 [plugins]
 run-paper = { id = "xyz.jpenilla.run-paper", version = "2.3.1" }
-resource-factory = { id = "xyz.jpenilla.resource-factory", version = "1.2.1" }
-shadow = { id = "com.github.johnrengelman.shadow", version = "8.1.1" }
-kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version = "2.1.20" }
-kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version = "2.1.20" }
+resource-factory = { id = "xyz.jpenilla.resource-factory", version = "1.3.0" }
+shadow = { id = "com.gradleup.shadow", version = "9.4.3" }
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version = "2.4.0" }
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version = "2.4.0" }
+detekt = { id = "dev.detekt", version = "2.0.0-alpha.5" }
 
 [bundles]
 commands = ["lamp-common", "lamp-bukkit"]

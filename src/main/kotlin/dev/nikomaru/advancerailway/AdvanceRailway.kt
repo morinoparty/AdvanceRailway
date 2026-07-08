@@ -25,6 +25,7 @@ import dev.nikomaru.advancerailway.commands.station.StationInfoCommand
 import dev.nikomaru.advancerailway.commands.station.StationMainCommand
 import dev.nikomaru.advancerailway.file.FileLoader
 import dev.nikomaru.advancerailway.listener.RailClickEvent
+import dev.nikomaru.advancerailway.mineauth.MineAuthIntegration
 import dev.nikomaru.advancerailway.utils.command.GroupIdParser.registerGroupIdParser
 import dev.nikomaru.advancerailway.utils.command.Point3DParser.registerPoint3DParser
 import dev.nikomaru.advancerailway.utils.command.RailwayIdParser.registerRailwayIdParser
@@ -51,6 +52,8 @@ open class AdvanceRailway: SuspendingJavaPlugin() {
         setupKoin()
         settingMap()
         FileLoader.load()
+        // MineAuth が導入されていれば HTTP エンドポイントを登録する（未導入でも動作する）。
+        MineAuthIntegration.register(this)
     }
 
     private fun settingMap() {

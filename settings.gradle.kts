@@ -7,17 +7,21 @@
  * If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
  */
 
-rootProject.name = "AdvanceRailway"
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        mavenCentral()
+        maven("https://papermc.io/repo/repository/maven-public/")
+    }
+}
 
+// Java 25 のツールチェーンを自動的にプロビジョニングする。
+plugins {
+    id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
+}
 
 dependencyResolutionManagement {
     defaultLibrariesExtensionName = "libs"
 }
 
-
-pluginManagement {
-    repositories {
-        gradlePluginPortal()
-        maven("https://papermc.io/repo/repository/maven-public/")
-    }
-}
+rootProject.name = "AdvanceRailway"
