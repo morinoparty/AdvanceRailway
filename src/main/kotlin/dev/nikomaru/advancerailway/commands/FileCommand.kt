@@ -41,19 +41,19 @@ class FileCommand: KoinComponent {
         }
         val data = when (dataType) {
             DataType.GROUP -> {
-                val file = plugin.dataFolder.resolve("data").resolve("groups").listFiles()!!
+                val file = DataPaths.groups.listFiles() ?: emptyArray()
                 val data = file.map { json.decodeFromString<GroupData>(it.readText()) }
                 stringFormat.encodeToString(data)
             }
 
             DataType.RAILWAY -> {
-                val file = plugin.dataFolder.resolve("data").resolve("railways").listFiles()!!
+                val file = DataPaths.railways.listFiles() ?: emptyArray()
                 val data = file.map { json.decodeFromString<RailwayData>(it.readText()) }
                 stringFormat.encodeToString(data)
             }
 
             DataType.STATION -> {
-                val file = plugin.dataFolder.resolve("data").resolve("stations").listFiles()!!
+                val file = DataPaths.stations.listFiles() ?: emptyArray()
                 val data = file.map { json.decodeFromString<StationData>(it.readText()) }
                 stringFormat.encodeToString(data)
             }
@@ -65,7 +65,12 @@ class FileCommand: KoinComponent {
 
     @Subcommand("import")
     fun import(sender: CommandSender, dataType: DataType, fileName: String) {
-        val data = plugin.dataFolder.resolve("import").resolve(fileName).readText()
+        val importFile = plugin.dataFolder.resolve("import").resolve(fileName)
+        if (!importFile.exists()) {
+            sender.sendRichMessage("Error: Import file not found: $fileName")
+            return
+        }
+        val data = importFile.readText()
         val extension = fileName.split(".").last()
         val stringFormat = when (extension) {
             "csv" -> csv
@@ -74,29 +79,29 @@ class FileCommand: KoinComponent {
         }
         when (dataType) {
             DataType.GROUP -> {
-                val fileDir = plugin.dataFolder.resolve("data").resolve("groups")
+                val fileDir = DataPaths.groups
                 fileDir.listFiles()?.forEach { it.delete() }
                 fileDir.mkdirs()
                 val groupData = stringFormat.decodeFromString<List<GroupData>>(data)
                 groupData.forEach {
-                    val file = plugin.dataFolder.resolve("data").resolve("groups").resolve("${it.groupId.value}.json")
+                    val file = fileDir.resolve("${it.groupId.value}.json")
                     file.writeText(json.encodeToString(it))
                 }
             }
 
             DataType.RAILWAY -> {
-                val fileDir = plugin.dataFolder.resolve("data").resolve("railways")
+                val fileDir = DataPaths.railways
                 fileDir.listFiles()?.forEach { it.delete() }
                 fileDir.mkdirs()
                 val railwayData = stringFormat.decodeFromString<List<RailwayData>>(data)
                 railwayData.forEach {
-                    val file = plugin.dataFolder.resolve("data").resolve("railways").resolve("${it.id.value}.json")
+                    val file = fileDir.resolve("${it.id.value}.json")
                     file.writeText(json.encodeToString(it))
                 }
             }
 
             DataType.STATION -> {
-                val fileDir = plugin.dataFolder.resolve("data").resolve("stations")
+                val fileDir = DataPaths.stations
                 fileDir.listFiles()?.forEach { it.delete() }
                 fileDir.mkdirs()
                 val stationData = stringFormat.decodeFromString<List<StationData>>(data)

@@ -9,7 +9,7 @@
 
 package dev.nikomaru.advancerailway.commands.group
 
-import arrow.core.Either
+import dev.nikomaru.advancerailway.commands.getOrSend
 import dev.nikomaru.advancerailway.file.value.GroupId
 import dev.nikomaru.advancerailway.utils.GroupUtils
 import org.bukkit.command.CommandSender
@@ -19,36 +19,22 @@ import revxrsal.commands.bukkit.annotation.CommandPermission
 import java.awt.Color
 
 @Command("ar group", "advancerailway group")
-@CommandPermission("advancerailway.command.group")
+@CommandPermission("advancerailway.command.group.write")
 class GroupEditCommand {
     @Subcommand("set name")
     suspend fun setName(sender: CommandSender, groupId: GroupId, newName: String) {
-        val data = when (val res = GroupUtils.getGroupData(groupId)) {
-            is Either.Left -> {
-                sender.sendRichMessage("Station not found")
-                return
-            }
-
-            is Either.Right -> {
-                res.value
-            }
-        }
+        val data = GroupUtils.getGroupData(groupId).getOrSend(sender) { "Group not found" } ?: return
         data.copy(name = newName).save()
         sender.sendRichMessage("Station name set")
     }
 
     @Subcommand("set color")
     suspend fun setColor(sender: CommandSender, groupId: GroupId, r: Int, g: Int, b: Int) {
-        val data = when (val res = GroupUtils.getGroupData(groupId)) {
-            is Either.Left -> {
-                sender.sendRichMessage("Station not found")
-                return
-            }
-
-            is Either.Right -> {
-                res.value
-            }
+        if (r !in 0..255 || g !in 0..255 || b !in 0..255) {
+            sender.sendRichMessage("Error: RGB values must each be between 0 and 255")
+            return
         }
+        val data = GroupUtils.getGroupData(groupId).getOrSend(sender) { "Group not found" } ?: return
         val color = Color(r, g, b)
         data.copy(railwayColor = color).save()
         sender.sendRichMessage("group color set")

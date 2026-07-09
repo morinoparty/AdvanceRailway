@@ -12,9 +12,11 @@ package dev.nikomaru.advancerailway.commands.railway
 
 import dev.nikomaru.advancerailway.AdvanceRailway
 import dev.nikomaru.advancerailway.Point3D
+import dev.nikomaru.advancerailway.commands.DataPaths
 import dev.nikomaru.advancerailway.file.FileLoader
 import dev.nikomaru.advancerailway.file.data.RailwayData
 import dev.nikomaru.advancerailway.file.type.LineType
+import dev.nikomaru.advancerailway.file.value.IdValidation
 import dev.nikomaru.advancerailway.file.value.RailwayId
 import dev.nikomaru.advancerailway.utils.RailwayUtils
 import dev.nikomaru.advancerailway.utils.StationUtils
@@ -28,7 +30,7 @@ import revxrsal.commands.annotation.Subcommand
 import revxrsal.commands.bukkit.annotation.CommandPermission
 
 @Command("advancerailway railway", "ar railway")
-@CommandPermission("advancerailway.command.railway")
+@CommandPermission("advancerailway.command.railway.write")
 class RailwayMainCommand: KoinComponent {
     val plugin: AdvanceRailway by inject()
 
@@ -36,8 +38,8 @@ class RailwayMainCommand: KoinComponent {
     suspend fun register(
         sender: CommandSender, railwayId: String, startPoint: Point3D, directionPoint: Point3D, endPoint: Point3D
     ) {
-        railwayId.matches(Regex("[a-zA-Z0-9_-]+")) || run {
-            sender.sendRichMessage("Error: Invalid railway ID \"[a-zA-Z0-9_-]+\"")
+        if (!IdValidation.isValid(railwayId)) {
+            sender.sendRichMessage("Error: Invalid railway ID \"$railwayId\"")
             return
         }
         sender.sendRichMessage("Registering railway...")
@@ -48,6 +50,10 @@ class RailwayMainCommand: KoinComponent {
     suspend fun update(
         sender: CommandSender, railwayId: String, startPoint: Point3D, directionPoint: Point3D, endPoint: Point3D
     ) {
+        if (!IdValidation.isValid(railwayId)) {
+            sender.sendRichMessage("Error: Invalid railway ID \"$railwayId\"")
+            return
+        }
         sender.sendRichMessage("Updating railway...")
         handleRailway(sender, railwayId, startPoint, directionPoint, endPoint, "Updated")
     }
@@ -91,7 +97,7 @@ class RailwayMainCommand: KoinComponent {
 
     @Subcommand("remove")
     suspend fun remove(sender: CommandSender, railwayId: RailwayId) {
-        val file = plugin.dataFolder.resolve("data").resolve("railways").resolve("$railwayId.json")
+        val file = DataPaths.railways.resolve("$railwayId.json")
         if (!file.exists()) {
             sender.sendRichMessage("Error: Railway not found")
             return

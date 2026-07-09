@@ -158,6 +158,27 @@ sourceSets.main {
                         "advancerailway.command.common"
                     )
                 }
+                // 旧来の粗い（coarse）ノードは read/write 双方の親として残し、
+                // 既存の付与（admin → coarse → read+write）をそのまま維持する。
+                // write リーフには default を付けない（op 以外に書き込みを与えないため）。
+                register("advancerailway.command.group") {
+                    children(
+                        "advancerailway.command.group.read",
+                        "advancerailway.command.group.write"
+                    )
+                }
+                register("advancerailway.command.station") {
+                    children(
+                        "advancerailway.command.station.read",
+                        "advancerailway.command.station.write"
+                    )
+                }
+                register("advancerailway.command.railway") {
+                    children(
+                        "advancerailway.command.railway.read",
+                        "advancerailway.command.railway.write"
+                    )
+                }
             }
             apiVersion = "1.21"
         }

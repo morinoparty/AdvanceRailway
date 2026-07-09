@@ -26,9 +26,12 @@ import dev.nikomaru.advancerailway.commands.station.StationMainCommand
 import dev.nikomaru.advancerailway.file.FileLoader
 import dev.nikomaru.advancerailway.listener.RailClickEvent
 import dev.nikomaru.advancerailway.mineauth.MineAuthIntegration
+import dev.nikomaru.advancerailway.utils.command.GroupIdParser
 import dev.nikomaru.advancerailway.utils.command.GroupIdParser.registerGroupIdParser
 import dev.nikomaru.advancerailway.utils.command.Point3DParser.registerPoint3DParser
+import dev.nikomaru.advancerailway.utils.command.RailwayIdParser
 import dev.nikomaru.advancerailway.utils.command.RailwayIdParser.registerRailwayIdParser
+import dev.nikomaru.advancerailway.utils.command.StationIdParser
 import dev.nikomaru.advancerailway.utils.command.StationIdParser.registerStationIdParser
 import org.bukkit.Bukkit
 import org.koin.core.context.GlobalContext
@@ -50,6 +53,7 @@ open class AdvanceRailway: SuspendingJavaPlugin() {
         setCommand()
         setEventHandlers()
         setupKoin()
+        ensureCommandDataFolders()
         settingMap()
         FileLoader.load()
         // MineAuth が導入されていれば HTTP エンドポイントを登録する（未導入でも動作する）。
@@ -67,6 +71,17 @@ open class AdvanceRailway: SuspendingJavaPlugin() {
             single { squaremapApi }
             single { provider }
         })
+    }
+
+    /**
+     * Creates the data/{groups,railways,stations} folders used by the id parsers' suggestions.
+     * Must run after [setupKoin], since it resolves the Koin-injected plugin instance; the id
+     * parsers' own `suggestions()` deliberately stays read-only and never creates these folders.
+     */
+    private fun ensureCommandDataFolders() {
+        GroupIdParser.ensureDataFolder()
+        RailwayIdParser.ensureDataFolder()
+        StationIdParser.ensureDataFolder()
     }
 
     private fun setupKoin() {
