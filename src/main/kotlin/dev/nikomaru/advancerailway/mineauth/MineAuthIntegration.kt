@@ -10,21 +10,34 @@
 package dev.nikomaru.advancerailway.mineauth
 
 import dev.nikomaru.advancerailway.AdvanceRailway
+import dev.nikomaru.advancerailway.file.data.ConfigData
+import org.koin.core.component.KoinComponent
+import org.koin.core.component.get
 import party.morino.mineauth.api.MineAuthAPI
 
 /**
  * MineAuth との連携をセットアップするエントリーポイント。
  * MineAuth は softdepend であり、存在しない場合は何もせず AdvanceRailway は単体で動作する。
  */
-object MineAuthIntegration {
+object MineAuthIntegration : KoinComponent {
 
     /**
      * MineAuth が導入されていれば [RailwayApiHandler] を登録する。
      * 登録後、エンドポイントは `/api/v1/plugins/advancerailway/` 配下で利用可能になる。
      *
+     * ただし [ConfigData.mineAuthEnabled] が false の場合は登録をスキップする（フェイルセーフ）。
+     * 登録した場合でも各エンドポイントは権限で保護される（[RailwayApiHandler] 参照）。
+     *
      * @param plugin AdvanceRailway 本体
      */
     fun register(plugin: AdvanceRailway) {
+        // 設定で連携が無効化されている場合は何もしない。
+        val config = get<ConfigData>()
+        if (!config.mineAuthEnabled) {
+            plugin.logger.info("MineAuth integration disabled by config; skipping HTTP endpoint registration.")
+            return
+        }
+
         // MineAuth 本体を安全にキャストして取得する（未導入・非対応バージョンでは null）。
         val api = plugin.server.pluginManager.getPlugin("MineAuth") as? MineAuthAPI
         if (api == null) {
