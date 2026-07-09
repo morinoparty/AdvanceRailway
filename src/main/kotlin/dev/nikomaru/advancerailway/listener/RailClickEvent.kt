@@ -14,7 +14,7 @@ import dev.nikomaru.advancerailway.Point3D
 import dev.nikomaru.advancerailway.utils.RailwayUtils
 import dev.nikomaru.advancerailway.utils.RailwayUtils.railEndpointInspect
 import dev.nikomaru.advancerailway.utils.StationUtils
-import dev.nikomaru.advancerailway.utils.coroutines.async
+import dev.nikomaru.advancerailway.utils.coroutines.minecraft
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -37,7 +37,7 @@ class RailClickEvent: Listener {
             return
         }
         detect.remove(player)
-        withContext(Dispatchers.async) {
+        withContext(Dispatchers.minecraft) {
             val block = event.clickedBlock ?: return@withContext
             val blockState = block.blockData
             if (blockState !is Rail) {
@@ -71,7 +71,11 @@ class RailClickEvent: Listener {
                             val (start, direction, end) = value
                             val startStation = StationUtils.nearStation(start!!.toLocation(player.world)).getOrNull()
                             val endStation = StationUtils.nearStation(end!!.toLocation(player.world)).getOrNull()
-                            val railwayId = startStation!!.value + "_" + endStation!!.value
+                            if (startStation == null || endStation == null) {
+                                player.sendRichMessage("No stations registered yet")
+                                return@forEach
+                            }
+                            val railwayId = startStation.value + "_" + endStation.value
                             val suggestMessage =
                                 "<click:suggest_command:'/ar railway add $railwayId ${start.toPlainString()} ${direction!!.toPlainString()} ${end.toPlainString()}'>[create]</click>"
                             player.sendRichMessage(

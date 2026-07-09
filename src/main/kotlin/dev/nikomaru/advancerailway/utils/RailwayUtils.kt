@@ -22,7 +22,6 @@ import dev.nikomaru.advancerailway.file.data.ConfigData
 import dev.nikomaru.advancerailway.file.data.RailwayData
 import dev.nikomaru.advancerailway.file.value.RailwayId
 import dev.nikomaru.advancerailway.utils.Utils.json
-import dev.nikomaru.advancerailway.utils.coroutines.async
 import dev.nikomaru.advancerailway.utils.coroutines.minecraft
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -138,7 +137,7 @@ object RailwayUtils: KoinComponent {
 
     suspend fun getLine(
         startPoint: Point3D, directionPoint: Point3D, endPoint: Point3D
-    ): Either<RailTraceError, Line3D> = withContext(Dispatchers.async) {
+    ): Either<RailTraceError, Line3D> = withContext(Dispatchers.minecraft) {
         var previousPoint = startPoint
         var currentPoint = directionPoint
         var count = 0
@@ -185,7 +184,12 @@ object RailwayUtils: KoinComponent {
             if (!file.exists()) {
                 return@withContext Either.Left(DataSearchError.NOT_FOUND)
             }
-            return@withContext Either.Right(json.decodeFromString(file.readText()))
+            return@withContext try {
+                Either.Right(json.decodeFromString<RailwayData>(file.readText()))
+            } catch (e: Exception) {
+                plugin.logger.warning("Failed to decode railway data '${file.name}': ${e.message}")
+                Either.Left(DataSearchError.DESERIALIZATION_FAILED)
+            }
         }
 
 }
