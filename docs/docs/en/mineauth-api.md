@@ -26,12 +26,16 @@ stations is `/api/v1/plugins/advancerailway/stations`.
 
 A by-id request for an id that does not exist returns an HTTP `404 Not Found` error.
 
-## Authentication / permissions
+## Authentication
 
-All six endpoints are gated with the `@Permission("advancerailway.mineauth.read")` annotation, so a
-caller must hold the `advancerailway.mineauth.read` permission node (enforced by MineAuth) to read
-railway data. The endpoints expose exact in-world coordinates, so grant this node only to trusted
-callers.
+All six endpoints are declared `@Authenticated(callers = [CallerType.SERVICE])`, so they can only be
+called with a **service-account token** — a trusted credential that a server administrator issues via
+MineAuth. Player user tokens (issued through MineAuth's OAuth2 flow) are rejected. The endpoints expose
+exact in-world coordinates, so issue service tokens only to trusted backend integrations.
+
+Because service tokens are treated as trusted credentials, MineAuth does **not** evaluate any Bukkit
+permission node for them; access is controlled purely by whether the caller holds a valid service token.
+(This replaces the previous `advancerailway.mineauth.read` permission-node gate.)
 
 The integration can also be disabled entirely via config (`mineAuthEnabled: false` in the plugin
 config); when disabled, `MineAuthIntegration` does not register the handler even if MineAuth is present.

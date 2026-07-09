@@ -16,9 +16,8 @@ import kotlinx.serialization.Serializable
  *
  * これらは Bukkit 型（World / Color など）や独自の value class を含まず、
  * プリミティブと文字列のみで構成する。
- * AdvanceRailway 自身の [dev.nikomaru.advancerailway.utils.Utils.json] で JSON 文字列へ変換し、
- * Ktor の TextContent として生 JSON を返すことで、プラグイン間クラスローダをまたぐ
- * シリアライザの不整合を回避する。
+ * [RailwayApiHandler] はこれらの `@Serializable` DTO をそのまま返し、
+ * JSON へのシリアライズは MineAuth 側が各 DTO のシリアライザを解決して行う。
  */
 
 /** 3 次元座標。 */

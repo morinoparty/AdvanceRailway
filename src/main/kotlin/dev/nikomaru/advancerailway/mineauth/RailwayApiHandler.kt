@@ -27,18 +27,15 @@ import dev.nikomaru.advancerailway.mineauth.dto.StationsResponse
 import dev.nikomaru.advancerailway.utils.GroupUtils
 import dev.nikomaru.advancerailway.utils.RailwayUtils
 import dev.nikomaru.advancerailway.utils.StationUtils
-import dev.nikomaru.advancerailway.utils.Utils.json
-import io.ktor.http.ContentType
-import io.ktor.http.content.TextContent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.SerializationStrategy
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import party.morino.mineauth.api.annotations.GetMapping
-import party.morino.mineauth.api.annotations.PathParam
-import party.morino.mineauth.api.annotations.Permission
-import party.morino.mineauth.api.annotations.QueryParams
+import party.morino.mineauth.api.CallerType
+import party.morino.mineauth.api.annotations.Authenticated
+import party.morino.mineauth.api.annotations.Get
+import party.morino.mineauth.api.annotations.Path
+import party.morino.mineauth.api.annotations.Query
 import party.morino.mineauth.api.http.HttpError
 import party.morino.mineauth.api.http.HttpStatus
 import java.io.File
@@ -47,17 +44,18 @@ import java.io.File
  * MineAuth の HTTP API へ AdvanceRailway の駅・路線・グループデータを公開するハンドラー。
  * `/api/v1/plugins/advancerailway/` 配下に読み取り専用エンドポイントを提供する。
  *
- * 戻り値は [dev.nikomaru.advancerailway.utils.Utils.json] で JSON へ変換した [TextContent] とする。
- * MineAuth 側はこれを生の JSON としてそのまま書き出すため、プラグイン間で kotlinx.serialization の
- * シリアライザ実体を共有する必要がなくなる。
+ * 各エンドポイントは [Authenticated] で保護し、`callers = [CallerType.SERVICE]` を指定して
+ * 管理者が発行したサービストークンからのみ呼び出せるようにする（プレイヤーのユーザートークンは拒否）。
+ * サービストークンは信頼された資格情報として扱われ、パーミッションノードの評価対象外となるため、
+ * ここでは permission を指定しない。
+ *
+ * ハンドラーは [kotlinx.serialization.Serializable] な DTO をそのまま返し、
+ * JSON へのシリアライズは MineAuth 側が担う。
  */
 class RailwayApiHandler : KoinComponent {
     private val plugin: AdvanceRailway by inject()
 
     companion object {
-        /** すべての読み取りエンドポイントに要求する権限ノード。 */
-        const val READ_PERMISSION = "advancerailway.mineauth.read"
-
         /** limit 未指定時に返す件数の既定値。 */
         const val DEFAULT_LIMIT = 100
 
@@ -68,100 +66,111 @@ class RailwayApiHandler : KoinComponent {
     /**
      * limit/offset のクエリパラメータを健全な範囲に正規化する。
      *
-     * - offset: 0 以上（負値・不正値は 0 に丸める）。
-     * - limit: 1..[MAX_LIMIT] の範囲。未指定・不正値は [DEFAULT_LIMIT]。
+     * - offset: 0 以上（負値・未指定は 0 に丸める）。
+     * - limit: 1..[MAX_LIMIT] の範囲。未指定は [DEFAULT_LIMIT]。
+     *
+     * @return `(skip, take)` のペア。
      */
-    private fun paging(params: Map<String, String>): Pair<Int, Int> {
-        val offset = params["offset"]?.toIntOrNull()?.coerceAtLeast(0) ?: 0
-        val limit = (params["limit"]?.toIntOrNull() ?: DEFAULT_LIMIT).coerceIn(1, MAX_LIMIT)
-        return offset to limit
+    private fun paging(limit: Int?, offset: Int?): Pair<Int, Int> {
+        val skip = (offset ?: 0).coerceAtLeast(0)
+        val take = (limit ?: DEFAULT_LIMIT).coerceIn(1, MAX_LIMIT)
+        return skip to take
     }
 
     /**
      * すべての駅を取得する（limit/offset でページングする）。
      * GET /stations?limit={n}&offset={n}
      */
-    @Permission(READ_PERMISSION)
-    @GetMapping("/stations")
-    suspend fun listStations(@QueryParams params: Map<String, String> = emptyMap()): TextContent {
-        val (offset, limit) = paging(params)
+    @Get("/stations")
+    @Authenticated(callers = [CallerType.SERVICE])
+    suspend fun listStations(
+        @Query("limit") limit: Int? = null,
+        @Query("offset") offset: Int? = null,
+    ): StationsResponse {
+        val (skip, take) = paging(limit, offset)
         val stations = listIds("stations")
-            .drop(offset)
-            .take(limit)
+            .drop(skip)
+            .take(take)
             .mapNotNull { StationUtils.getStationData(StationId(it)).getOrNull() }
             .map { it.toDto() }
-        return json(StationsResponse(stations), StationsResponse.serializer())
+        return StationsResponse(stations)
     }
 
     /**
      * 指定した駅を取得する。
      * GET /stations/{id}
      */
-    @Permission(READ_PERMISSION)
-    @GetMapping("/stations/{id}")
-    suspend fun getStation(@PathParam("id") id: String): TextContent {
+    @Get("/stations/{id}")
+    @Authenticated(callers = [CallerType.SERVICE])
+    suspend fun getStation(@Path("id") id: String): StationDto {
         if (!IdValidation.isValid(id)) throw HttpError(HttpStatus.NOT_FOUND, "Station not found: $id")
         val station = StationUtils.getStationData(StationId(id)).getOrNull()
             ?: throw HttpError(HttpStatus.NOT_FOUND, "Station not found: $id")
-        return json(station.toDto(), StationDto.serializer())
+        return station.toDto()
     }
 
     /**
      * すべての路線を取得する（limit/offset でページングする）。
      * GET /railways?limit={n}&offset={n}
      */
-    @Permission(READ_PERMISSION)
-    @GetMapping("/railways")
-    suspend fun listRailways(@QueryParams params: Map<String, String> = emptyMap()): TextContent {
-        val (offset, limit) = paging(params)
+    @Get("/railways")
+    @Authenticated(callers = [CallerType.SERVICE])
+    suspend fun listRailways(
+        @Query("limit") limit: Int? = null,
+        @Query("offset") offset: Int? = null,
+    ): RailwaysResponse {
+        val (skip, take) = paging(limit, offset)
         val railways = listIds("railways")
-            .drop(offset)
-            .take(limit)
+            .drop(skip)
+            .take(take)
             .mapNotNull { RailwayUtils.getRailwayData(RailwayId(it)).getOrNull() }
             .map { it.toDto() }
-        return json(RailwaysResponse(railways), RailwaysResponse.serializer())
+        return RailwaysResponse(railways)
     }
 
     /**
      * 指定した路線を取得する。
      * GET /railways/{id}
      */
-    @Permission(READ_PERMISSION)
-    @GetMapping("/railways/{id}")
-    suspend fun getRailway(@PathParam("id") id: String): TextContent {
+    @Get("/railways/{id}")
+    @Authenticated(callers = [CallerType.SERVICE])
+    suspend fun getRailway(@Path("id") id: String): RailwayDto {
         if (!IdValidation.isValid(id)) throw HttpError(HttpStatus.NOT_FOUND, "Railway not found: $id")
         val railway = RailwayUtils.getRailwayData(RailwayId(id)).getOrNull()
             ?: throw HttpError(HttpStatus.NOT_FOUND, "Railway not found: $id")
-        return json(railway.toDto(), RailwayDto.serializer())
+        return railway.toDto()
     }
 
     /**
      * すべてのグループを取得する（limit/offset でページングする）。
      * GET /groups?limit={n}&offset={n}
      */
-    @Permission(READ_PERMISSION)
-    @GetMapping("/groups")
-    suspend fun listGroups(@QueryParams params: Map<String, String> = emptyMap()): TextContent {
-        val (offset, limit) = paging(params)
+    @Get("/groups")
+    @Authenticated(callers = [CallerType.SERVICE])
+    suspend fun listGroups(
+        @Query("limit") limit: Int? = null,
+        @Query("offset") offset: Int? = null,
+    ): GroupsResponse {
+        val (skip, take) = paging(limit, offset)
         val groups = listIds("groups")
-            .drop(offset)
-            .take(limit)
+            .drop(skip)
+            .take(take)
             .mapNotNull { GroupUtils.getGroupData(GroupId(it)).getOrNull() }
             .map { it.toDto() }
-        return json(GroupsResponse(groups), GroupsResponse.serializer())
+        return GroupsResponse(groups)
     }
 
     /**
      * 指定したグループを取得する。
      * GET /groups/{id}
      */
-    @Permission(READ_PERMISSION)
-    @GetMapping("/groups/{id}")
-    suspend fun getGroup(@PathParam("id") id: String): TextContent {
+    @Get("/groups/{id}")
+    @Authenticated(callers = [CallerType.SERVICE])
+    suspend fun getGroup(@Path("id") id: String): GroupDto {
         if (!IdValidation.isValid(id)) throw HttpError(HttpStatus.NOT_FOUND, "Group not found: $id")
         val group = GroupUtils.getGroupData(GroupId(id)).getOrNull()
             ?: throw HttpError(HttpStatus.NOT_FOUND, "Group not found: $id")
-        return json(group.toDto(), GroupDto.serializer())
+        return group.toDto()
     }
 
     /**
@@ -176,13 +185,6 @@ class RailwayApiHandler : KoinComponent {
             ?.sorted()
             ?: emptyList()
     }
-
-    /**
-     * DTO を [dev.nikomaru.advancerailway.utils.Utils.json] で JSON 化し、
-     * application/json の [TextContent] として返すヘルパー。
-     */
-    private fun <T> json(value: T, serializer: SerializationStrategy<T>): TextContent =
-        TextContent(json.encodeToString(serializer, value), ContentType.Application.Json)
 
     private fun StationData.toDto(): StationDto = StationDto(
         id = stationId.value,
