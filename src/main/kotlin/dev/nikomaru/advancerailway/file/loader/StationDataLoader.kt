@@ -40,13 +40,23 @@ class StationDataLoader: KoinComponent {
             railwayDataFolder.mkdirs()
         }
         railwayDataFolder.listFiles()?.forEach { file ->
-            val data = json.decodeFromString<RailwayData>(file.readText())
+            val data = try {
+                json.decodeFromString<RailwayData>(file.readText())
+            } catch (e: Exception) {
+                plugin.logger.warning("Skipping malformed railway data file '${file.name}': ${e.message}")
+                return@forEach
+            }
             joinedCount[data.toStation] = joinedCount.getOrDefault(data.toStation, 0) + 1
             joinedCount[data.fromStation] = joinedCount.getOrDefault(data.fromStation, 0) + 1
         }
 
         stationDataFolder.listFiles()?.forEach { file ->
-            val stationData = json.decodeFromString<StationData>(file.readText())
+            val stationData = try {
+                json.decodeFromString<StationData>(file.readText())
+            } catch (e: Exception) {
+                plugin.logger.warning("Skipping malformed station data file '${file.name}': ${e.message}")
+                return@forEach
+            }
             val key = Key.of(stationData.stationId.value)
             val color = stationData.color
             val colorOption = MarkerOptions.builder().fillColor(color.brighter()).strokeColor(color).clickTooltip(

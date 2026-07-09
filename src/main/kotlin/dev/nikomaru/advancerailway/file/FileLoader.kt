@@ -13,6 +13,8 @@ import dev.nikomaru.advancerailway.AdvanceRailway
 import dev.nikomaru.advancerailway.file.loader.ConfigDataLoader
 import dev.nikomaru.advancerailway.file.loader.RailwayDataLoader
 import dev.nikomaru.advancerailway.file.loader.StationDataLoader
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import xyz.jpenilla.squaremap.api.SimpleLayerProvider
@@ -20,7 +22,15 @@ import xyz.jpenilla.squaremap.api.SimpleLayerProvider
 object FileLoader: KoinComponent {
     private val provider: SimpleLayerProvider by inject()
     private val plugin: AdvanceRailway by inject()
-    suspend fun load() {
+
+    /**
+     * マーカーの全消去→再構築を直列化するためのロック。
+     * 複数の保存処理が並行して [mapDataLoad] を呼んでも、
+     * clearMarkers() と addMarker() が交錯して不整合な状態にならないようにする。
+     */
+    private val mapLoadMutex = Mutex()
+
+    suspend fun load() = mapLoadMutex.withLock {
         val importFolder = plugin.dataFolder.resolve("import")
         if (!importFolder.exists()) {
             importFolder.mkdirs()
@@ -32,7 +42,7 @@ object FileLoader: KoinComponent {
         RailwayDataLoader().load()
     }
 
-    suspend fun mapDataLoad() {
+    suspend fun mapDataLoad() = mapLoadMutex.withLock {
         provider.clearMarkers()
         StationDataLoader().load()
         RailwayDataLoader().load()

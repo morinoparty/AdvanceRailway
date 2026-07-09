@@ -15,6 +15,7 @@ import dev.nikomaru.advancerailway.Point3D
 import dev.nikomaru.advancerailway.file.FileLoader
 import dev.nikomaru.advancerailway.file.type.LineType
 import dev.nikomaru.advancerailway.file.utils.WorldSerializer
+import dev.nikomaru.advancerailway.file.utils.writeAtomically
 import dev.nikomaru.advancerailway.file.value.GroupId
 import dev.nikomaru.advancerailway.file.value.RailwayId
 import dev.nikomaru.advancerailway.file.value.StationId
@@ -41,7 +42,7 @@ data class RailwayData(
 
     suspend fun save() {
         val file = plugin.dataFolder.resolve("data").resolve("railways").resolve("${id.value}.json")
-        file.writeText(json.encodeToString(this))
+        writeAtomically(file, json.encodeToString(this))
         FileLoader.mapDataLoad()
     }
 

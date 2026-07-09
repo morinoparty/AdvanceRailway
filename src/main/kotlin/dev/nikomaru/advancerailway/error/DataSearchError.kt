@@ -10,5 +10,6 @@
 package dev.nikomaru.advancerailway.error
 
 enum class DataSearchError {
-    NOT_FOUND
+    NOT_FOUND,
+    DESERIALIZATION_FAILED
 }

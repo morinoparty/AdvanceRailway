@@ -18,4 +18,10 @@ data class ConfigData(
     val circleMax: Double = 20.0,
     val circleMultiple: Double = 5.0, // size = base + (multiple * (stations.size))
     val calcString: String = "base + (multiple * (stations.size))", //TODO: Implement this
+    /**
+     * MineAuth の HTTP API 連携を有効にするか。
+     * false の場合、MineAuth が導入されていてもエンドポイントを登録しない。
+     * 有効時もエンドポイントは権限（advancerailway.mineauth.read）で保護される。
+     */
+    val mineAuthEnabled: Boolean = true,
 )

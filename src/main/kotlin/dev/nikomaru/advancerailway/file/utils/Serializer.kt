@@ -12,6 +12,7 @@ package dev.nikomaru.advancerailway.file.utils
 import dev.nikomaru.advancerailway.Line3D
 import dev.nikomaru.advancerailway.Point3D
 import kotlinx.serialization.KSerializer
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.descriptors.PrimitiveKind
 import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
 import kotlinx.serialization.encoding.Decoder
@@ -95,7 +96,9 @@ object WorldSerializer: KSerializer<org.bukkit.World> {
     override val descriptor = PrimitiveSerialDescriptor("World", PrimitiveKind.STRING)
 
     override fun deserialize(decoder: Decoder): org.bukkit.World {
-        return Bukkit.getWorld(decoder.decodeString())!!
+        val name = decoder.decodeString()
+        return Bukkit.getWorld(name)
+            ?: throw SerializationException("World not found: \"$name\"")
     }
 
     override fun serialize(encoder: Encoder, value: org.bukkit.World) {
