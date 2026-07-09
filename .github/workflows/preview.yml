@@ -69,11 +69,9 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Run tests
-        continue-on-error: true
         run: ./gradlew test
 
       - name: Run detekt
-        continue-on-error: true
         run: ./gradlew detekt
 
       - name: Build with Gradle
