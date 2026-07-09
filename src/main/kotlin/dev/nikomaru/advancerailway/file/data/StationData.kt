@@ -15,6 +15,7 @@ import dev.nikomaru.advancerailway.Point3D
 import dev.nikomaru.advancerailway.file.FileLoader
 import dev.nikomaru.advancerailway.file.utils.ColorSerializer
 import dev.nikomaru.advancerailway.file.utils.WorldSerializer
+import dev.nikomaru.advancerailway.file.utils.writeAtomically
 import dev.nikomaru.advancerailway.file.value.StationId
 import dev.nikomaru.advancerailway.utils.Utils.json
 import kotlinx.serialization.Serializable
@@ -33,21 +34,28 @@ data class StationData(
     val world: @Serializable(with = WorldSerializer::class) World,
     val point: Point3D,
     val overrideSize: Double?,
-    val color: @Serializable(with = ColorSerializer::class) Color = Color(
-        Random.nextInt(256),
-        Random.nextInt(256),
-        Random.nextInt(256)
-    )
+    val color: @Serializable(with = ColorSerializer::class) Color = defaultColor(stationId)
 ): KoinComponent {
     val plugin: AdvanceRailway by inject()
 
     suspend fun save() {
         val file = plugin.dataFolder.resolve("data").resolve("stations").resolve("${stationId.value}.json")
-        file.writeText(json.encodeToString(this))
+        writeAtomically(file, json.encodeToString(this))
         FileLoader.mapDataLoad()
     }
 
     companion object {
+        /**
+         * 駅 ID から決定論的に既定色を導出する。
+         *
+         * 乱数シードを駅 ID に固定することで、`color` を持たない旧データを
+         * デコードするたびに色が変わってしまう問題を防ぐ。
+         */
+        fun defaultColor(stationId: StationId): Color {
+            val random = Random(stationId.hashCode().toLong())
+            return Color(random.nextInt(256), random.nextInt(256), random.nextInt(256))
+        }
+
         fun load(stationId: StationId): StationData {
             val file = plugin.dataFolder.resolve("data").resolve("stations").resolve("${stationId.value}.json")
             return json.decodeFromString(file.readText())

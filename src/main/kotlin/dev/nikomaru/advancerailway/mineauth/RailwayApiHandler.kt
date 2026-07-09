@@ -14,6 +14,7 @@ import dev.nikomaru.advancerailway.file.data.GroupData
 import dev.nikomaru.advancerailway.file.data.RailwayData
 import dev.nikomaru.advancerailway.file.data.StationData
 import dev.nikomaru.advancerailway.file.value.GroupId
+import dev.nikomaru.advancerailway.file.value.IdValidation
 import dev.nikomaru.advancerailway.file.value.RailwayId
 import dev.nikomaru.advancerailway.file.value.StationId
 import dev.nikomaru.advancerailway.mineauth.dto.GroupDto
@@ -36,6 +37,8 @@ import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import party.morino.mineauth.api.annotations.GetMapping
 import party.morino.mineauth.api.annotations.PathParam
+import party.morino.mineauth.api.annotations.Permission
+import party.morino.mineauth.api.annotations.QueryParams
 import party.morino.mineauth.api.http.HttpError
 import party.morino.mineauth.api.http.HttpStatus
 import java.io.File
@@ -51,13 +54,40 @@ import java.io.File
 class RailwayApiHandler : KoinComponent {
     private val plugin: AdvanceRailway by inject()
 
+    companion object {
+        /** すべての読み取りエンドポイントに要求する権限ノード。 */
+        const val READ_PERMISSION = "advancerailway.mineauth.read"
+
+        /** limit 未指定時に返す件数の既定値。 */
+        const val DEFAULT_LIMIT = 100
+
+        /** limit の上限。過大なリクエストによる全件読み取り・エンコードを防ぐ。 */
+        const val MAX_LIMIT = 500
+    }
+
     /**
-     * すべての駅を取得する。
-     * GET /stations
+     * limit/offset のクエリパラメータを健全な範囲に正規化する。
+     *
+     * - offset: 0 以上（負値・不正値は 0 に丸める）。
+     * - limit: 1..[MAX_LIMIT] の範囲。未指定・不正値は [DEFAULT_LIMIT]。
      */
+    private fun paging(params: Map<String, String>): Pair<Int, Int> {
+        val offset = params["offset"]?.toIntOrNull()?.coerceAtLeast(0) ?: 0
+        val limit = (params["limit"]?.toIntOrNull() ?: DEFAULT_LIMIT).coerceIn(1, MAX_LIMIT)
+        return offset to limit
+    }
+
+    /**
+     * すべての駅を取得する（limit/offset でページングする）。
+     * GET /stations?limit={n}&offset={n}
+     */
+    @Permission(READ_PERMISSION)
     @GetMapping("/stations")
-    suspend fun listStations(): TextContent {
+    suspend fun listStations(@QueryParams params: Map<String, String> = emptyMap()): TextContent {
+        val (offset, limit) = paging(params)
         val stations = listIds("stations")
+            .drop(offset)
+            .take(limit)
             .mapNotNull { StationUtils.getStationData(StationId(it)).getOrNull() }
             .map { it.toDto() }
         return json(StationsResponse(stations), StationsResponse.serializer())
@@ -67,20 +97,26 @@ class RailwayApiHandler : KoinComponent {
      * 指定した駅を取得する。
      * GET /stations/{id}
      */
+    @Permission(READ_PERMISSION)
     @GetMapping("/stations/{id}")
     suspend fun getStation(@PathParam("id") id: String): TextContent {
+        if (!IdValidation.isValid(id)) throw HttpError(HttpStatus.NOT_FOUND, "Station not found: $id")
         val station = StationUtils.getStationData(StationId(id)).getOrNull()
             ?: throw HttpError(HttpStatus.NOT_FOUND, "Station not found: $id")
         return json(station.toDto(), StationDto.serializer())
     }
 
     /**
-     * すべての路線を取得する。
-     * GET /railways
+     * すべての路線を取得する（limit/offset でページングする）。
+     * GET /railways?limit={n}&offset={n}
      */
+    @Permission(READ_PERMISSION)
     @GetMapping("/railways")
-    suspend fun listRailways(): TextContent {
+    suspend fun listRailways(@QueryParams params: Map<String, String> = emptyMap()): TextContent {
+        val (offset, limit) = paging(params)
         val railways = listIds("railways")
+            .drop(offset)
+            .take(limit)
             .mapNotNull { RailwayUtils.getRailwayData(RailwayId(it)).getOrNull() }
             .map { it.toDto() }
         return json(RailwaysResponse(railways), RailwaysResponse.serializer())
@@ -90,20 +126,26 @@ class RailwayApiHandler : KoinComponent {
      * 指定した路線を取得する。
      * GET /railways/{id}
      */
+    @Permission(READ_PERMISSION)
     @GetMapping("/railways/{id}")
     suspend fun getRailway(@PathParam("id") id: String): TextContent {
+        if (!IdValidation.isValid(id)) throw HttpError(HttpStatus.NOT_FOUND, "Railway not found: $id")
         val railway = RailwayUtils.getRailwayData(RailwayId(id)).getOrNull()
             ?: throw HttpError(HttpStatus.NOT_FOUND, "Railway not found: $id")
         return json(railway.toDto(), RailwayDto.serializer())
     }
 
     /**
-     * すべてのグループを取得する。
-     * GET /groups
+     * すべてのグループを取得する（limit/offset でページングする）。
+     * GET /groups?limit={n}&offset={n}
      */
+    @Permission(READ_PERMISSION)
     @GetMapping("/groups")
-    suspend fun listGroups(): TextContent {
+    suspend fun listGroups(@QueryParams params: Map<String, String> = emptyMap()): TextContent {
+        val (offset, limit) = paging(params)
         val groups = listIds("groups")
+            .drop(offset)
+            .take(limit)
             .mapNotNull { GroupUtils.getGroupData(GroupId(it)).getOrNull() }
             .map { it.toDto() }
         return json(GroupsResponse(groups), GroupsResponse.serializer())
@@ -113,8 +155,10 @@ class RailwayApiHandler : KoinComponent {
      * 指定したグループを取得する。
      * GET /groups/{id}
      */
+    @Permission(READ_PERMISSION)
     @GetMapping("/groups/{id}")
     suspend fun getGroup(@PathParam("id") id: String): TextContent {
+        if (!IdValidation.isValid(id)) throw HttpError(HttpStatus.NOT_FOUND, "Group not found: $id")
         val group = GroupUtils.getGroupData(GroupId(id)).getOrNull()
             ?: throw HttpError(HttpStatus.NOT_FOUND, "Group not found: $id")
         return json(group.toDto(), GroupDto.serializer())

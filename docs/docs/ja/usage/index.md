@@ -15,20 +15,21 @@
 
 ## グループの作成
 
-`ar gropu register <id> <name>`を使用してグループを作成します
+`ar group add <groupId> <groupName>`を使用してグループを作成します
 
-- `id` : グループのID
-- `name` : グループの名前
+- `groupId` : グループのID
+- `groupName` : グループの名前
 
 ### 例
 
-`ar gropu register mr もりもと線`を実行すると、もりもと線というグループが作成されます。<br>
+`ar group add mr もりもと線`を実行すると、もりもと線というグループが作成されます。<br>
 
 ## 路線の追加
 
-`ar railway register <railwayId> <start> <direction> <end>`を使用して路線を追加します
+`ar railway add <railwayId> <railwayName> <start> <direction> <end>`を使用して路線を追加します
 
-- `id` : 路線のID
+- `railwayId` : 路線のID
+- `railwayName` : 路線の名前
 - `start` : 路線の始点
 - `direction` : 路線の方向
 - `end` : 路線の終点

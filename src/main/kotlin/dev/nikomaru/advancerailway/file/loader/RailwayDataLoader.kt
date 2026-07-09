@@ -39,7 +39,12 @@ class RailwayDataLoader: KoinComponent {
             groupDataFolder.mkdirs()
         }
         railwayDataFolder.listFiles()?.forEach { file ->
-            val data = json.decodeFromString<RailwayData>(file.readText())
+            val data = try {
+                json.decodeFromString<RailwayData>(file.readText())
+            } catch (e: Exception) {
+                plugin.logger.warning("Skipping malformed railway data file '${file.name}': ${e.message}")
+                return@forEach
+            }
             val key = Key.of(data.id.value)
             val marker = Marker.multiPolyline(data.line.points.map { Point.of(it.x, it.z) })
             val arrow = when (data.lineType) {

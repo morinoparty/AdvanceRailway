@@ -1,15 +1,41 @@
-# NoticeTemplate
+# AdvanceRailway
 
-Please delete this README after copying
+AdvanceRailway is a [Paper](https://papermc.io/)/Bukkit plugin that lets you build and manage in-game railway
+networks: stations, railway lines, and groups of lines. It renders the network on the
+[squaremap](https://github.com/jpenilla/squaremap) web map and, when the MineAuth plugin is present,
+exposes a read-only HTTP API for querying stations, railways, and groups as JSON.
 
-## License 
-Written in 2022 by Nikomaru &emsp; No Rights Reserved. <br>
+## Features
 
-To the extent possible under law, Nikomaru has waived all copyright and related or neighboring rights to NoticeTemplate. This work is published from: Japan.<br>
+- Define stations and railways with commands, stored as JSON under the plugin's data folder.
+- Group railway lines together (e.g. by line color/name) via `GroupData`.
+- Draw stations and railway lines as markers on the squaremap live map (optional soft dependency).
+- Optional MineAuth integration that publishes `/api/v1/plugins/advancerailway/` HTTP endpoints for
+  stations, railways, and groups (list + get-by-id). See the docs site for the full API reference.
 
-You should have received a copy of the CC0 Public Domain Dedication along with this software. If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
+## Building
 
-## Usage
-### github
-1. Use this template
-2. To go `Settings` > `Actions` > `General` > `Workflow permissions` > `Check Read and write permission`
+AdvanceRailway targets Java 25 and is built with Gradle.
+
+```bash
+./gradlew build
+```
+
+This compiles the plugin, runs [detekt](https://detekt.dev/) static analysis, runs the test suite, and
+produces a shaded jar under `build/libs/`.
+
+To run a local Paper test server with the plugin loaded:
+
+```bash
+./gradlew runServer
+```
+
+## Documentation
+
+Full documentation (setup, commands, usage, and the MineAuth HTTP API) is published at
+<https://advance-railway.nikomaru.page>, built from the [`docs/`](docs) directory with
+[MkDocs Material](https://squidfunk.github.io/mkdocs-material/).
+
+## License
+
+See the repository for license details.

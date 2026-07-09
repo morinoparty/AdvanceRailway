@@ -9,8 +9,8 @@
 
 package dev.nikomaru.advancerailway.commands.railway
 
-import arrow.core.Either
 import dev.nikomaru.advancerailway.AdvanceRailway
+import dev.nikomaru.advancerailway.commands.getOrSend
 import dev.nikomaru.advancerailway.file.type.LineType
 import dev.nikomaru.advancerailway.file.value.GroupId
 import dev.nikomaru.advancerailway.file.value.RailwayId
@@ -24,70 +24,34 @@ import revxrsal.commands.annotation.Subcommand
 import revxrsal.commands.bukkit.annotation.CommandPermission
 
 @Command("ar railway", "advancerailway railway")
-@CommandPermission("advancerailway.command.railway")
+@CommandPermission("advancerailway.command.railway.write")
 class RailwayEditCommand: KoinComponent {
     val plugin: AdvanceRailway by inject()
 
     @Subcommand("set line-type")
     suspend fun setLineType(sender: CommandSender, railwayId: RailwayId, lineType: LineType) {
-        val data = when (val res = RailwayUtils.getRailwayData(railwayId)) {
-            is Either.Left -> {
-                sender.sendRichMessage("Railway not found")
-                return
-            }
-
-            is Either.Right -> {
-                res.value
-            }
-        }
+        val data = RailwayUtils.getRailwayData(railwayId).getOrSend(sender) { "Railway not found" } ?: return
         data.copy(lineType = lineType).save()
         sender.sendRichMessage("Line type set to $lineType")
     }
 
     @Subcommand("set group")
     suspend fun setGroup(sender: CommandSender, railwayId: RailwayId, groupId: GroupId) {
-        val data = when (val res = RailwayUtils.getRailwayData(railwayId)) {
-            is Either.Left -> {
-                sender.sendRichMessage("Railway not found")
-                return
-            }
-
-            is Either.Right -> {
-                res.value
-            }
-        }
+        val data = RailwayUtils.getRailwayData(railwayId).getOrSend(sender) { "Railway not found" } ?: return
         data.copy(group = groupId).save()
         sender.sendRichMessage("Group set to $groupId")
     }
 
     @Subcommand("unset group")
     suspend fun unsetGroup(sender: CommandSender, railwayId: RailwayId) {
-        val data = when (val res = RailwayUtils.getRailwayData(railwayId)) {
-            is Either.Left -> {
-                sender.sendRichMessage("Railway not found")
-                return
-            }
-
-            is Either.Right -> {
-                res.value
-            }
-        }
+        val data = RailwayUtils.getRailwayData(railwayId).getOrSend(sender) { "Railway not found" } ?: return
         data.copy(group = null).save()
         sender.sendRichMessage("Group unset")
     }
 
     @Subcommand("set from-station")
     suspend fun setFromStation(sender: CommandSender, railwayId: RailwayId, stationId: StationId) {
-        val data = when (val res = RailwayUtils.getRailwayData(railwayId)) {
-            is Either.Left -> {
-                sender.sendRichMessage("Railway not found")
-                return
-            }
-
-            is Either.Right -> {
-                res.value
-            }
-        }
+        val data = RailwayUtils.getRailwayData(railwayId).getOrSend(sender) { "Railway not found" } ?: return
         data.copy(fromStation = stationId).save()
         sender.sendRichMessage("From station set to $stationId")
 
@@ -95,16 +59,7 @@ class RailwayEditCommand: KoinComponent {
 
     @Subcommand("set to-station")
     suspend fun setToStation(sender: CommandSender, railwayId: RailwayId, stationId: StationId) {
-        val data = when (val res = RailwayUtils.getRailwayData(railwayId)) {
-            is Either.Left -> {
-                sender.sendRichMessage("Railway not found")
-                return
-            }
-
-            is Either.Right -> {
-                res.value
-            }
-        }
+        val data = RailwayUtils.getRailwayData(railwayId).getOrSend(sender) { "Railway not found" } ?: return
         data.copy(toStation = stationId).save()
         sender.sendRichMessage("To station set to $stationId")
 

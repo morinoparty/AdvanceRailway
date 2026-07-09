@@ -20,8 +20,25 @@ import kotlinx.serialization.encoding.Encoder
 
 @Serializable(with = GroupNameSerializer::class)
 class GroupId(val value: String) {
+    init {
+        require(IdValidation.isValid(value)) { "Invalid group ID: \"$value\"" }
+    }
+
     suspend fun toData() = GroupUtils.getGroupData(this).getOrNull()
     override fun toString(): String = value
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is GroupId) return false
+
+        if (value != other.value) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int {
+        return value.hashCode()
+    }
 }
 
 object GroupNameSerializer: KSerializer<GroupId> {

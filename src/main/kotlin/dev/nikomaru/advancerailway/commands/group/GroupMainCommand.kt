@@ -10,10 +10,14 @@
 package dev.nikomaru.advancerailway.commands.group
 
 import dev.nikomaru.advancerailway.AdvanceRailway
+import dev.nikomaru.advancerailway.commands.DataPaths
 import dev.nikomaru.advancerailway.file.FileLoader
 import dev.nikomaru.advancerailway.file.data.GroupData
+import dev.nikomaru.advancerailway.file.data.RailwayData
 import dev.nikomaru.advancerailway.file.value.GroupId
-import dev.nikomaru.advancerailway.file.value.StationId
+import dev.nikomaru.advancerailway.file.value.IdValidation
+import dev.nikomaru.advancerailway.utils.Utils.json
+import kotlinx.serialization.decodeFromString
 import org.bukkit.command.CommandSender
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
@@ -23,14 +27,14 @@ import revxrsal.commands.bukkit.annotation.CommandPermission
 import java.awt.Color
 
 @Command("ar group", "advancerailway group")
-@CommandPermission("advancerailway.command.group")
+@CommandPermission("advancerailway.command.group.write")
 class GroupMainCommand: KoinComponent {
     val plugin: AdvanceRailway by inject()
 
     @Subcommand("add")
     fun add(sender: CommandSender, id: String, name: String) {
-        id.matches(Regex("[a-zA-Z0-9_-]+")) || run {
-            sender.sendRichMessage("Error: Invalid group ID \"[a-zA-Z0-9_-]+\"")
+        if (!IdValidation.isValid(id)) {
+            sender.sendRichMessage("Error: Invalid group ID \"$id\"")
             return
         }
         val groupId = GroupId(id)
@@ -40,10 +44,20 @@ class GroupMainCommand: KoinComponent {
     }
 
     @Subcommand("remove")
-    suspend fun remove(sender: CommandSender, id: StationId) {
-        val file = plugin.dataFolder.resolve("data").resolve("groups").resolve("${id.value}.json")
+    suspend fun remove(sender: CommandSender, id: GroupId) {
+        val file = DataPaths.groups.resolve("${id.value}.json")
         if (!file.exists()) {
             sender.sendRichMessage("Group not found")
+            return
+        }
+        val dependents = (DataPaths.railways.listFiles() ?: emptyArray()).mapNotNull { railwayFile ->
+            runCatching { json.decodeFromString<RailwayData>(railwayFile.readText()) }.getOrNull()
+        }.filter { it.group == id }.map { it.id.value }
+        if (dependents.isNotEmpty()) {
+            sender.sendRichMessage(
+                "Error: Cannot remove group <yellow>${id.value}</yellow>; " +
+                    "referenced by railway(s): ${dependents.joinToString(", ")}"
+            )
             return
         }
         file.delete()

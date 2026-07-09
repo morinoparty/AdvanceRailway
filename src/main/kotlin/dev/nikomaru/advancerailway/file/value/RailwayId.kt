@@ -20,8 +20,25 @@ import kotlinx.serialization.encoding.Encoder
 
 @Serializable(with = RailwayNameSerializer::class)
 class RailwayId(val value: String) {
+    init {
+        require(IdValidation.isValid(value)) { "Invalid railway ID: \"$value\"" }
+    }
+
     suspend fun toData() = RailwayUtils.getRailwayData(this).getOrNull()
     override fun toString(): String = value
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is RailwayId) return false
+
+        if (value != other.value) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int {
+        return value.hashCode()
+    }
 }
 
 object RailwayNameSerializer: KSerializer<RailwayId> {

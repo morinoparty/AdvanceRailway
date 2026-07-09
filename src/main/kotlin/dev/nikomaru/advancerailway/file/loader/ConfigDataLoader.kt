@@ -11,6 +11,7 @@ package dev.nikomaru.advancerailway.file.loader
 
 import dev.nikomaru.advancerailway.AdvanceRailway
 import dev.nikomaru.advancerailway.file.data.ConfigData
+import dev.nikomaru.advancerailway.file.utils.writeAtomically
 import dev.nikomaru.advancerailway.utils.Utils.json
 import kotlinx.serialization.encodeToString
 import org.koin.core.component.KoinComponent
@@ -25,10 +26,9 @@ class ConfigDataLoader: KoinComponent {
         val file = plugin.dataFolder.resolve("config.json")
         if (!file.exists()) {
             file.parentFile.mkdirs()
-            file.createNewFile()
             val data = ConfigData(1000)
             val str = json.encodeToString(data)
-            file.writeText(str)
+            writeAtomically(file, str)
         }
         val configData = json.decodeFromString<ConfigData>(file.readText())
         loadKoinModules(module {

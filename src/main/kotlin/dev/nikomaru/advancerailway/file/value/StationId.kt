@@ -21,6 +21,10 @@ import kotlinx.serialization.encoding.Encoder
 
 @Serializable(with = StationNameSerializer::class)
 class StationId(val value: String) {
+    init {
+        require(IdValidation.isValid(value)) { "Invalid station ID: \"$value\"" }
+    }
+
     suspend fun toData() = StationUtils.getStationData(this).getOrNull()
 
     override fun toString(): String {

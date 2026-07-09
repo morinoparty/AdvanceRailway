@@ -32,6 +32,11 @@ object GroupUtils: KoinComponent {
         if (!file.exists()) {
             return@withContext Either.Left(DataSearchError.NOT_FOUND)
         }
-        return@withContext Either.Right(json.decodeFromString(file.readText()))
+        return@withContext try {
+            Either.Right(json.decodeFromString<GroupData>(file.readText()))
+        } catch (e: Exception) {
+            plugin.logger.warning("Failed to decode group data '${file.name}': ${e.message}")
+            Either.Left(DataSearchError.DESERIALIZATION_FAILED)
+        }
     }
 }

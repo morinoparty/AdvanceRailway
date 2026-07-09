@@ -12,6 +12,7 @@ package dev.nikomaru.advancerailway.file.data
 import dev.nikomaru.advancerailway.AdvanceRailway
 import dev.nikomaru.advancerailway.AdvanceRailway.Companion.plugin
 import dev.nikomaru.advancerailway.file.utils.ColorSerializer
+import dev.nikomaru.advancerailway.file.utils.writeAtomically
 import dev.nikomaru.advancerailway.file.value.GroupId
 import dev.nikomaru.advancerailway.utils.Utils.json
 import kotlinx.serialization.Serializable
@@ -29,7 +30,7 @@ data class GroupData(
     val plugin: AdvanceRailway by inject()
     fun save() {
         val file = plugin.dataFolder.resolve("data").resolve("groups").resolve("${groupId.value}.json")
-        file.writeText(json.encodeToString(this))
+        writeAtomically(file, json.encodeToString(this))
     }
 
     companion object {

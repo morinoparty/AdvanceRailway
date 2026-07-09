@@ -117,6 +117,15 @@ class RailwayApiHandlerTest {
     }
 
     @Test
+    @DisplayName("getStation rejects a path-traversal id with NOT_FOUND before touching disk")
+    fun getStationRejectsInvalidId() {
+        val error = assertThrows<HttpError> {
+            runBlocking { handler.getStation("../config") }
+        }
+        assertEquals(HttpStatus.NOT_FOUND, error.status)
+    }
+
+    @Test
     @DisplayName("listStations returns every station on disk")
     fun listStationsReturnsAll() = runBlocking {
         val response = handler.listStations()
@@ -151,6 +160,34 @@ class RailwayApiHandlerTest {
     }
 
     @Test
+    @DisplayName("getRailway throws NOT_FOUND for a missing id")
+    fun getRailwayNotFound() {
+        val error = assertThrows<HttpError> {
+            runBlocking { handler.getRailway("does-not-exist") }
+        }
+        assertEquals(HttpStatus.NOT_FOUND, error.status)
+    }
+
+    @Test
+    @DisplayName("getRailway rejects a URL-encoded path-traversal id with NOT_FOUND before touching disk")
+    fun getRailwayRejectsInvalidId() {
+        val error = assertThrows<HttpError> {
+            runBlocking { handler.getRailway("..%2F..%2Fx") }
+        }
+        assertEquals(HttpStatus.NOT_FOUND, error.status)
+    }
+
+    @Test
+    @DisplayName("listGroups returns every group on disk")
+    fun listGroupsReturnsAll() = runBlocking {
+        val response = handler.listGroups()
+
+        val groups = json.parseToJsonElement(response.text).jsonObject["groups"]!!.jsonArray
+        assertEquals(1, groups.size)
+        assertEquals("g1", groups.first().jsonObject["id"]!!.jsonPrimitive.content)
+    }
+
+    @Test
     @DisplayName("getGroup returns the group with a hex color")
     fun getGroupReturnsJson() = runBlocking {
         val response = handler.getGroup("g1")
@@ -166,6 +203,15 @@ class RailwayApiHandlerTest {
     fun getGroupNotFound() {
         val error = assertThrows<HttpError> {
             runBlocking { handler.getGroup("missing") }
+        }
+        assertEquals(HttpStatus.NOT_FOUND, error.status)
+    }
+
+    @Test
+    @DisplayName("getGroup rejects a relative path-traversal id with NOT_FOUND before touching disk")
+    fun getGroupRejectsInvalidId() {
+        val error = assertThrows<HttpError> {
+            runBlocking { handler.getGroup("../../x") }
         }
         assertEquals(HttpStatus.NOT_FOUND, error.status)
     }

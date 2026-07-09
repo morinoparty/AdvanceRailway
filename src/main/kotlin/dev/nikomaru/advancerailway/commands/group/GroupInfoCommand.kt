@@ -9,8 +9,9 @@
 
 package dev.nikomaru.advancerailway.commands.group
 
-import arrow.core.Either
 import dev.nikomaru.advancerailway.AdvanceRailway
+import dev.nikomaru.advancerailway.commands.DataPaths
+import dev.nikomaru.advancerailway.commands.getOrSend
 import dev.nikomaru.advancerailway.file.value.GroupId
 import dev.nikomaru.advancerailway.utils.GroupUtils
 import org.bukkit.command.CommandSender
@@ -21,20 +22,13 @@ import revxrsal.commands.annotation.Subcommand
 import revxrsal.commands.bukkit.annotation.CommandPermission
 
 @Command("ar group", "advancerailway group")
-@CommandPermission("advancerailway.command.group")
+@CommandPermission("advancerailway.command.group.read")
 class GroupInfoCommand: KoinComponent {
     val plugin: AdvanceRailway by inject()
 
     @Subcommand("info")
     suspend fun info(sender: CommandSender, groupId: GroupId) {
-        val data = when (val result = GroupUtils.getGroupData(groupId)) {
-            is Either.Left -> {
-                sender.sendRichMessage("Group not found")
-                return
-            }
-
-            is Either.Right -> result.value
-        }
+        val data = GroupUtils.getGroupData(groupId).getOrSend(sender) { "Group not found" } ?: return
         sender.sendRichMessage("Group Info: <yellow>${data.groupId.value}")
         sender.sendRichMessage("<yellow>Display Name: <reset>${data.name}")
         sender.sendRichMessage("<yellow>Color: <reset>${data.railwayColor}")
@@ -43,7 +37,7 @@ class GroupInfoCommand: KoinComponent {
     @Subcommand("list")
     fun list(sender: CommandSender) {
         val list =
-            plugin.dataFolder.resolve("data").resolve("groups").listFiles()?.map { it.nameWithoutExtension } ?: run {
+            DataPaths.groups.listFiles()?.map { it.nameWithoutExtension } ?: run {
                 sender.sendRichMessage("No group found")
                 return
             }

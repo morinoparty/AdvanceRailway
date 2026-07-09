@@ -9,8 +9,9 @@
 
 package dev.nikomaru.advancerailway.commands.railway
 
-import arrow.core.Either
 import dev.nikomaru.advancerailway.AdvanceRailway
+import dev.nikomaru.advancerailway.commands.DataPaths
+import dev.nikomaru.advancerailway.commands.getOrSend
 import dev.nikomaru.advancerailway.file.value.RailwayId
 import dev.nikomaru.advancerailway.utils.RailwayUtils
 import org.bukkit.command.CommandSender
@@ -22,20 +23,13 @@ import revxrsal.commands.bukkit.annotation.CommandPermission
 import kotlin.math.ceil
 
 @Command("ar railway", "advancerailway railway")
-@CommandPermission("advancerailway.command.railway")
+@CommandPermission("advancerailway.command.railway.read")
 class RailwayInfoCommand: KoinComponent {
     val plugin: AdvanceRailway by inject()
 
     @Subcommand("info")
     suspend fun info(sender: CommandSender, railwayId: RailwayId) {
-        val data = when (val result = RailwayUtils.getRailwayData(railwayId)) {
-            is Either.Left -> {
-                sender.sendRichMessage("Railway not found")
-                return
-            }
-
-            is Either.Right -> result.value
-        }
+        val data = RailwayUtils.getRailwayData(railwayId).getOrSend(sender) { "Railway not found" } ?: return
         sender.sendRichMessage("Railway ID: ${data.id.value}")
         sender.sendRichMessage("Railway Stations: ${data.toStation} -> ${data.fromStation}")
         sender.sendRichMessage("Railway Length: ${ceil(data.timeRequired / 6.0) / 10} minutes")
@@ -43,7 +37,7 @@ class RailwayInfoCommand: KoinComponent {
 
     @Subcommand("list")
     fun list(sender: CommandSender) {
-        val list = plugin.dataFolder.resolve("data").resolve("railways").listFiles()?.map { it.nameWithoutExtension }
+        val list = DataPaths.railways.listFiles()?.map { it.nameWithoutExtension }
             ?: run {
                 sender.sendRichMessage("No railway found")
                 return

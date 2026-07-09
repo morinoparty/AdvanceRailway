@@ -35,9 +35,11 @@ object StationUtils: KoinComponent {
         val station =
             files.map { StationId(it.nameWithoutExtension) }.map { getStationData(it) }.filter { it.isRight() }
                 .map { it.getOrNull()!! }
-        val world = location.world //TODO 距離の計算を変更する ネザーの場合は8倍にする
+        val world = location.world //TODO 距離の計算を変更する ネザーの場合は8倍にする (nether distance scaling not yet implemented)
 
-        return@withContext Either.Right(station.minByOrNull { it.point.distanceTo2D(location.toPoint3D()) }!!.stationId)
+        val nearest = station.minByOrNull { it.point.distanceTo2D(location.toPoint3D()) }
+            ?: return@withContext Either.Left(DataSearchError.NOT_FOUND)
+        return@withContext Either.Right(nearest.stationId)
     }
 
     suspend fun getStationData(stationId: StationId): Either<DataSearchError, StationData> =
@@ -51,6 +53,11 @@ object StationUtils: KoinComponent {
             if (!file.exists()) {
                 return@withContext Either.Left(DataSearchError.NOT_FOUND)
             }
-            return@withContext Either.Right(json.decodeFromString(file.readText()))
+            return@withContext try {
+                Either.Right(json.decodeFromString<StationData>(file.readText()))
+            } catch (e: Exception) {
+                plugin.logger.warning("Failed to decode station data '${file.name}': ${e.message}")
+                Either.Left(DataSearchError.DESERIALIZATION_FAILED)
+            }
         }
 }
