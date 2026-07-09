@@ -16,12 +16,13 @@ import revxrsal.commands.bukkit.BukkitCommandHandler
 import revxrsal.commands.bukkit.sender
 import revxrsal.commands.command.CommandActor
 import revxrsal.commands.command.ExecutableCommand
+import revxrsal.commands.exception.InvalidNumberException
 import revxrsal.commands.process.ValueResolver
 
 object Point3DParser: ValueParser<Point3D>() {
     override fun suggestions(args: List<String>, sender: CommandSender, command: ExecutableCommand): Set<String> {
-        if (sender !is Player) run {
-            println("You must be a player to use this command")
+        // Console/non-player senders simply get no location-based suggestion; nothing to log here.
+        if (sender !is Player) {
             return emptySet()
         }
         val loc = sender.location
@@ -30,10 +31,14 @@ object Point3DParser: ValueParser<Point3D>() {
     }
 
     override fun resolve(context: ValueResolver.ValueResolverContext): Point3D {
-        val list = context.pop().split(",").map { it.toDouble() }
-        val x = list[0]
-        val y = list[1]
-        val z = list[2]
+        val input = context.pop()
+        val components = input.split(",")
+        if (components.size != 3) {
+            throw InvalidNumberException(context.parameter(), input)
+        }
+        val (x, y, z) = components.map { component ->
+            component.toDoubleOrNull() ?: throw InvalidNumberException(context.parameter(), component)
+        }
         return Point3D(x, y, z)
     }
 
