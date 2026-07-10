@@ -124,9 +124,9 @@ class RailwayApiHandlerTest {
     fun listStationsReturnsAll() = runBlocking {
         val response = handler.listStations()
 
-        assertEquals(2, response.stations.size)
+        assertEquals(3, response.stations.size)
         val ids = response.stations.map { it.id }.toSet()
-        assertEquals(setOf("st01", "st02"), ids)
+        assertEquals(setOf("st01", "st02", "st03"), ids)
     }
 
     @Test
@@ -205,12 +205,77 @@ class RailwayApiHandlerTest {
         assertEquals(HttpStatus.NOT_FOUND, error.status)
     }
 
+    @Test
+    @DisplayName("getRoute returns a single-leg route between connected stations")
+    fun getRouteReturnsRoute() = runBlocking {
+        val route = handler.getRoute("st01", "st02")
+
+        assertEquals("st01", route.from)
+        assertEquals("st02", route.to)
+        assertEquals(120L, route.totalTime)
+        assertEquals(listOf("st01", "st02"), route.stations)
+        assertEquals(1, route.legs.size)
+        assertEquals("rw01", route.legs.first().railway)
+        assertEquals("g1", route.legs.first().group)
+    }
+
+    @Test
+    @DisplayName("getRoute is undirected: the reverse direction also routes")
+    fun getRouteReverse() = runBlocking {
+        val route = handler.getRoute("st02", "st01")
+
+        assertEquals(listOf("st02", "st01"), route.stations)
+        assertEquals(120L, route.totalTime)
+    }
+
+    @Test
+    @DisplayName("getRoute throws BAD_REQUEST when from equals to")
+    fun getRouteSameStation() {
+        val error = assertThrows<HttpError> {
+            runBlocking { handler.getRoute("st01", "st01") }
+        }
+        assertEquals(HttpStatus.BAD_REQUEST, error.status)
+        assertEquals("same_station", error.code)
+    }
+
+    @Test
+    @DisplayName("getRoute throws NOT_FOUND (no_route) for a disconnected station")
+    fun getRouteNoPath() {
+        val error = assertThrows<HttpError> {
+            runBlocking { handler.getRoute("st01", "st03") }
+        }
+        assertEquals(HttpStatus.NOT_FOUND, error.status)
+        assertEquals("no_route", error.code)
+    }
+
+    @Test
+    @DisplayName("getRoute throws NOT_FOUND (station_not_found) for an unknown station")
+    fun getRouteUnknownStation() {
+        val error = assertThrows<HttpError> {
+            runBlocking { handler.getRoute("st01", "does-not-exist") }
+        }
+        assertEquals(HttpStatus.NOT_FOUND, error.status)
+        assertEquals("station_not_found", error.code)
+    }
+
+    @Test
+    @DisplayName("getRoute rejects a path-traversal station id before touching disk")
+    fun getRouteRejectsInvalidId() {
+        val error = assertThrows<HttpError> {
+            runBlocking { handler.getRoute("../config", "st02") }
+        }
+        assertEquals(HttpStatus.NOT_FOUND, error.status)
+        assertEquals("station_not_found", error.code)
+    }
+
     /**
      * テスト用の駅・路線・グループを実際のシリアライズ形式で dataFolder へ書き出す。
      */
     private fun writeFixtures() {
         writeStation("st01", "Central", Point3D(1.0, 64.0, -3.0), Color(255, 127, 0))
         writeStation("st02", "North", Point3D(5.0, 64.0, 10.0), Color(0, 0, 255))
+        // st03 は路線に接続されない孤立駅（経路探索の NoPath ケース用）。
+        writeStation("st03", "Isolated", Point3D(9.0, 64.0, 20.0), Color(128, 128, 128))
 
         val railway = RailwayData(
             id = RailwayId("rw01"),

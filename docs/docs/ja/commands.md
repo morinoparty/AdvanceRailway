@@ -39,6 +39,7 @@
 - [x] `ar railway set to-station <railwayId> <toStation>` 路線の終点駅を変更します。
 - [x] `ar railway info <railwayId>` 路線の情報を表示します。
 - [x] `ar railway list` 路線の一覧を表示します。
+- [x] `ar railway route <from> <to>` 2駅間の最短（所要時間最小）経路を検索し、各区間と合計所要時間を表示します。
 
 ## 駅
 

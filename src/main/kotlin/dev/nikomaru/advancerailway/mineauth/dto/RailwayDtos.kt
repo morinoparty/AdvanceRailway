@@ -77,3 +77,27 @@ data class RailwaysResponse(val railways: List<RailwayDto>)
 /** グループ一覧レスポンス。 */
 @Serializable
 data class GroupsResponse(val groups: List<GroupDto>)
+
+/** 経路の 1 区間（1 本の路線に乗る単位）。 */
+@Serializable
+data class RouteLegDto(
+    val railway: String,
+    val from: String,
+    val to: String,
+    /** この区間の所要時間（秒）。 */
+    val timeRequired: Long,
+    /** 路線が属するグループ。無ければ `null`。 */
+    val group: String?,
+)
+
+/** 駅間経路レスポンス。 */
+@Serializable
+data class RouteResponse(
+    val from: String,
+    val to: String,
+    /** 合計所要時間（秒）。 */
+    val totalTime: Long,
+    /** 出発駅から到着駅まで、通過順に並んだ駅 ID 列。 */
+    val stations: List<String>,
+    val legs: List<RouteLegDto>,
+)

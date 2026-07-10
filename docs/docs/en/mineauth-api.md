@@ -20,6 +20,7 @@ normally.
 | GET | `/railways/{id}` | Get a single railway by id |
 | GET | `/groups` | List all groups |
 | GET | `/groups/{id}` | Get a single group by id |
+| GET | `/route?from={id}&to={id}` | Find the fastest route between two stations |
 
 Paths above are relative to the `/api/v1/plugins/advancerailway/` base path, e.g. the full path for listing
 stations is `/api/v1/plugins/advancerailway/stations`.
@@ -28,7 +29,7 @@ A by-id request for an id that does not exist returns an HTTP `404 Not Found` er
 
 ## Authentication
 
-All six endpoints are declared `@Authenticated(callers = [CallerType.SERVICE])`, so they can only be
+All endpoints are declared `@Authenticated(callers = [CallerType.SERVICE])`, so they can only be
 called with a **service-account token** — a trusted credential that a server administrator issues via
 MineAuth. Player user tokens (issued through MineAuth's OAuth2 flow) are rejected. The endpoints expose
 exact in-world coordinates, so issue service tokens only to trusted backend integrations.
@@ -124,3 +125,37 @@ All responses are JSON, encoded with `kotlinx.serialization`.
 ```
 
 `GET /groups/{id}` returns a single group object (unwrapped).
+
+### Route
+
+`GET /route?from={id}&to={id}` computes the fastest (least total travel time) route between two stations.
+Both `from` and `to` are **required** query parameters; omitting either returns `400 Bad Request`.
+
+All railways are treated as a weighted **undirected** graph, with each railway's `timeRequired` (seconds)
+as the edge weight; the shortest path is found with Dijkstra's algorithm. Directional routing
+(`UP_LINE` / `DOWN_LINE`) is not yet distinguished.
+
+```json
+{
+  "from": "central",
+  "to": "north",
+  "totalTime": 150,
+  "stations": ["central", "west", "north"],
+  "legs": [
+    { "railway": "central-to-west", "from": "central", "to": "west", "timeRequired": 60, "group": "main-line" },
+    { "railway": "west-to-north", "from": "west", "to": "north", "timeRequired": 90, "group": null }
+  ]
+}
+```
+
+- `totalTime` is the sum of all legs' `timeRequired`, in seconds.
+- `stations` is the ordered list of station ids passed through, from `from` to `to`.
+- `group` on a leg may be `null` if that railway does not belong to a group.
+
+Error responses carry a machine-readable `code`:
+
+| Status | `code` | When |
+| --- | --- | --- |
+| `404 Not Found` | `station_not_found` | `from` or `to` is not a valid/existing station |
+| `400 Bad Request` | `same_station` | `from` and `to` are the same station |
+| `404 Not Found` | `no_route` | the two stations are not connected by any path |
