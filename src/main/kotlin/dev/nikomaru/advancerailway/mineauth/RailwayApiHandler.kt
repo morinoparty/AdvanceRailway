@@ -22,11 +22,20 @@ import dev.nikomaru.advancerailway.mineauth.dto.GroupsResponse
 import dev.nikomaru.advancerailway.mineauth.dto.RailwayDto
 import dev.nikomaru.advancerailway.mineauth.dto.RailwayDtoMapper
 import dev.nikomaru.advancerailway.mineauth.dto.RailwaysResponse
+import dev.nikomaru.advancerailway.mineauth.dto.RouteLegDto
+import dev.nikomaru.advancerailway.mineauth.dto.RouteResponse
 import dev.nikomaru.advancerailway.mineauth.dto.StationDto
 import dev.nikomaru.advancerailway.mineauth.dto.StationsResponse
+import dev.nikomaru.advancerailway.route.RailEdge
+import dev.nikomaru.advancerailway.route.Route
+import dev.nikomaru.advancerailway.route.RouteError
+import dev.nikomaru.advancerailway.route.RouteFinder
+import dev.nikomaru.advancerailway.route.StationNode
+import dev.nikomaru.advancerailway.route.Waypoint
 import dev.nikomaru.advancerailway.utils.GroupUtils
 import dev.nikomaru.advancerailway.utils.RailwayUtils
 import dev.nikomaru.advancerailway.utils.StationUtils
+import arrow.core.Either
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.koin.core.component.KoinComponent
@@ -174,6 +183,59 @@ class RailwayApiHandler : KoinComponent {
     }
 
     /**
+     * 2 駅間の最短（所要時間最小）経路を求める。
+     * GET /route?from={stationId}&to={stationId}
+     *
+     * 全路線を重み付き無向グラフとみなし、[RouteFinder] で経路を探索する。
+     * - 駅が存在しない: 404 `station_not_found`
+     * - 出発駅と到着駅が同一: 400 `same_station`
+     * - 経路が存在しない: 404 `no_route`
+     */
+    @Get("/route")
+    @Authenticated(callers = [CallerType.SERVICE])
+    suspend fun getRoute(
+        @Query("from") from: String,
+        @Query("to") to: String,
+    ): RouteResponse {
+        val stations = loadStationNodes()
+        val fromNode = requireStation(from, stations)
+        val toNode = requireStation(to, stations)
+        val railways = listIds("railways")
+            .mapNotNull { RailwayUtils.getRailwayData(RailwayId(it)).getOrNull() }
+            .map { RailEdge(it.id, it.fromStation, it.toStation, it.timeRequired, it.group) }
+        return when (val result = RouteFinder.findRoute(stations, railways, Waypoint.Station(fromNode), toNode)) {
+            is Either.Left -> when (result.value) {
+                RouteError.SameStation -> throw HttpError(
+                    HttpStatus.BAD_REQUEST, "Departure and destination are the same station", code = "same_station"
+                )
+
+                RouteError.NoPath -> throw HttpError(
+                    HttpStatus.NOT_FOUND, "No route between $from and $to", code = "no_route"
+                )
+            }
+
+            is Either.Right -> result.value.toDto(fromNode.id, toNode.id)
+        }
+    }
+
+    /** 経路探索用に、全駅を幾何ノードとして読み込む。 */
+    private suspend fun loadStationNodes(): List<StationNode> = listIds("stations")
+        .mapNotNull { StationUtils.getStationData(StationId(it)).getOrNull() }
+        .map { StationNode(it.stationId, it.world.name, it.point) }
+
+    /**
+     * 経路探索用に駅 ID を検証し、読み込み済みノードから解決する。
+     * 不正な ID または存在しない駅は 404 `station_not_found` として弾く。
+     */
+    private fun requireStation(id: String, stations: List<StationNode>): StationNode {
+        if (!IdValidation.isValid(id)) {
+            throw HttpError(HttpStatus.NOT_FOUND, "Station not found: $id", code = "station_not_found")
+        }
+        return stations.find { it.id.value == id }
+            ?: throw HttpError(HttpStatus.NOT_FOUND, "Station not found: $id", code = "station_not_found")
+    }
+
+    /**
      * data/{type}/ 配下の JSON ファイル名（拡張子なし）を ID として列挙する。
      */
     private suspend fun listIds(type: String): List<String> = withContext(Dispatchers.IO) {
@@ -182,6 +244,8 @@ class RailwayApiHandler : KoinComponent {
         folder.listFiles(File::isFile)
             ?.filter { it.extension == "json" }
             ?.map { it.nameWithoutExtension }
+            // 不正なファイル名（allowlist 外）を除外し、value class の init で例外→500 になるのを防ぐ。
+            ?.filter { IdValidation.isValid(it) }
             ?.sorted()
             ?: emptyList()
     }
@@ -213,5 +277,22 @@ class RailwayApiHandler : KoinComponent {
         id = groupId.value,
         name = name,
         color = RailwayDtoMapper.colorToHex(railwayColor),
+    )
+
+    private fun Route.toDto(from: StationId, to: StationId): RouteResponse = RouteResponse(
+        from = from.value,
+        to = to.value,
+        totalTime = totalSeconds,
+        stations = stations.map { it.value },
+        legs = legs.map {
+            RouteLegDto(
+                mode = it.mode.name,
+                railway = it.railwayId?.value,
+                from = it.from?.value,
+                to = it.to.value,
+                timeRequired = it.timeSeconds,
+                group = it.group?.value,
+            )
+        },
     )
 }
