@@ -1,0 +1,13 @@
+{
+    "id": "mthm_snrn",
+    "group": "meidai",
+    "world": "world",
+    "lineType": "UP_LINE",
+    "line": "(-3320.0,79.0,-8132.0):(-3321.0,78.0,-8132.0):(-3922.0,78.0,-8132.0):(-3924.0,79.0,-8132.0):(-3926.0,78.0,-8132.0)",
+    "fromStation": "mthm",
+    "toStation": "snrn",
+    "timeRequired": 75,
+    "startPoint": "-3320.0,79.0,-8132.0",
+    "endPoint": "-3926.0,78.0,-8132.0",
+    "directionPoint": "-3321.0,78.0,-8132.0"
+}

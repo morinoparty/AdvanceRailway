@@ -1,0 +1,13 @@
+{
+    "id": "hrn_srs",
+    "group": "sf",
+    "world": "world",
+    "lineType": "UP_DOWN_LINE",
+    "line": "(710.0,56.0,-77.0):(710.0,56.0,-79.0):(710.0,54.0,-81.0):(710.0,54.0,-85.0):(711.0,54.0,-86.0):(1145.0,54.0,-86.0)",
+    "fromStation": "hrn",
+    "toStation": "srs",
+    "timeRequired": 55,
+    "startPoint": "710.0,56.0,-77.0",
+    "endPoint": "1145.0,54.0,-86.0",
+    "directionPoint": "710.0,56.0,-78.0"
+}

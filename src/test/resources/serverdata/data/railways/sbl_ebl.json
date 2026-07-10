@@ -1,0 +1,13 @@
+{
+    "id": "sbl_ebl",
+    "group": "border",
+    "world": "world",
+    "lineType": "UP_DOWN_LINE",
+    "line": "(-151.0,94.0,9911.0):(9467.0,94.0,9911.0):(9468.0,94.0,9910.0):(9468.0,106.0,9898.0):(9468.0,108.0,9896.0):(9468.0,108.0,707.0)",
+    "fromStation": "sbl",
+    "toStation": "ebl",
+    "timeRequired": 2353,
+    "startPoint": "-151.0,94.0,9911.0",
+    "endPoint": "9468.0,108.0,707.0",
+    "directionPoint": "-150.0,94.0,9911.0"
+}

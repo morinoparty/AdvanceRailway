@@ -12,7 +12,7 @@ package dev.nikomaru.advancerailway.utils.command
 import dev.nikomaru.advancerailway.file.value.StationId
 import revxrsal.commands.bukkit.BukkitCommandHandler
 
-object StationIdParser: IdParser<StationId>("stations", StationId::class.java, ::StationId) {
+object StationIdParser: IdParser<StationId>("stations", StationId::class.java, ::StationId, nameField = "name") {
     fun BukkitCommandHandler.registerStationIdParser() {
         registerIdParser()
     }

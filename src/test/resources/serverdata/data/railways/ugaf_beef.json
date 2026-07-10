@@ -1,0 +1,13 @@
+{
+    "id": "ugaf_beef",
+    "group": "mu",
+    "world": "world",
+    "lineType": "UP_DOWN_LINE",
+    "line": "(-507.0,77.0,-701.0):(-507.0,77.0,-913.0):(-492.0,77.0,-928.0):(-492.0,77.0,-932.0)",
+    "fromStation": "ugaf",
+    "toStation": "beef",
+    "timeRequired": 29,
+    "startPoint": "-507.0,77.0,-701.0",
+    "endPoint": "-492.0,77.0,-932.0",
+    "directionPoint": "-507.0,77.0,-702.0"
+}

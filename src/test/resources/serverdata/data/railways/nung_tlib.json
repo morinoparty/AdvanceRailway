@@ -1,0 +1,13 @@
+{
+    "id": "nung_tlib",
+    "group": "meidai",
+    "world": "world",
+    "lineType": "UP_LINE",
+    "line": "(-961.0,78.0,-546.0):(-961.0,78.0,-578.0):(-959.0,78.0,-580.0):(-959.0,78.0,-704.0):(-961.0,78.0,-706.0):(-961.0,78.0,-726.0)",
+    "fromStation": "nung",
+    "toStation": "tlib",
+    "timeRequired": 22,
+    "startPoint": "-961.0,78.0,-546.0",
+    "endPoint": "-961.0,78.0,-726.0",
+    "directionPoint": "-961.0,78.0,-547.0"
+}

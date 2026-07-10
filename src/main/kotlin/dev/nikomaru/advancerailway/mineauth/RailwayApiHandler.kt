@@ -197,12 +197,18 @@ class RailwayApiHandler : KoinComponent {
         @Query("from") from: String,
         @Query("to") to: String,
     ): RouteResponse {
-        val stations = loadStationNodes()
+        val stationData = listIds("stations")
+            .mapNotNull { StationUtils.getStationData(StationId(it)).getOrNull() }
+        val stations = stationData.map { StationNode(it.stationId, it.world.name, it.point) }
+        val stationNames = stationData.associate { it.stationId.value to it.name }
         val fromNode = requireStation(from, stations)
         val toNode = requireStation(to, stations)
         val railways = listIds("railways")
             .mapNotNull { RailwayUtils.getRailwayData(RailwayId(it)).getOrNull() }
             .map { RailEdge(it.id, it.fromStation, it.toStation, it.timeRequired, it.group) }
+        val groupNames = listIds("groups")
+            .mapNotNull { GroupUtils.getGroupData(GroupId(it)).getOrNull() }
+            .associate { it.groupId.value to it.name }
         return when (val result = RouteFinder.findRoute(stations, railways, Waypoint.Station(fromNode), toNode)) {
             is Either.Left -> when (result.value) {
                 RouteError.SameStation -> throw HttpError(
@@ -214,14 +220,9 @@ class RailwayApiHandler : KoinComponent {
                 )
             }
 
-            is Either.Right -> result.value.toDto(fromNode.id, toNode.id)
+            is Either.Right -> result.value.toDto(fromNode.id, toNode.id, stationNames, groupNames)
         }
     }
-
-    /** 経路探索用に、全駅を幾何ノードとして読み込む。 */
-    private suspend fun loadStationNodes(): List<StationNode> = listIds("stations")
-        .mapNotNull { StationUtils.getStationData(StationId(it)).getOrNull() }
-        .map { StationNode(it.stationId, it.world.name, it.point) }
 
     /**
      * 経路探索用に駅 ID を検証し、読み込み済みノードから解決する。
@@ -279,20 +280,33 @@ class RailwayApiHandler : KoinComponent {
         color = RailwayDtoMapper.colorToHex(railwayColor),
     )
 
-    private fun Route.toDto(from: StationId, to: StationId): RouteResponse = RouteResponse(
-        from = from.value,
-        to = to.value,
-        totalTime = totalSeconds,
-        stations = stations.map { it.value },
-        legs = legs.map {
-            RouteLegDto(
-                mode = it.mode.name,
-                railway = it.railwayId?.value,
-                from = it.from?.value,
-                to = it.to.value,
-                timeRequired = it.timeSeconds,
-                group = it.group?.value,
-            )
-        },
-    )
+    private fun Route.toDto(
+        from: StationId,
+        to: StationId,
+        stationNames: Map<String, String>,
+        groupNames: Map<String, String>,
+    ): RouteResponse {
+        fun sName(id: String): String = stationNames[id]?.takeIf { it.isNotBlank() } ?: id
+        return RouteResponse(
+            from = from.value,
+            fromName = sName(from.value),
+            to = to.value,
+            toName = sName(to.value),
+            totalTime = totalSeconds,
+            stations = stations.map { it.value },
+            legs = legs.map {
+                RouteLegDto(
+                    mode = it.mode.name,
+                    railway = it.railwayId?.value,
+                    from = it.from?.value,
+                    fromName = it.from?.let { s -> sName(s.value) },
+                    to = it.to.value,
+                    toName = sName(it.to.value),
+                    timeRequired = it.timeSeconds,
+                    group = it.group?.value,
+                    line = it.group?.let { g -> groupNames[g.value]?.takeIf { n -> n.isNotBlank() } ?: g.value },
+                )
+            },
+        )
+    }
 }
