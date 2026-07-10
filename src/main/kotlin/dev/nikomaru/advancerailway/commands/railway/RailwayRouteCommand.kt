@@ -12,16 +12,19 @@ package dev.nikomaru.advancerailway.commands.railway
 import arrow.core.Either
 import dev.nikomaru.advancerailway.AdvanceRailway
 import dev.nikomaru.advancerailway.file.data.StationData
+import dev.nikomaru.advancerailway.file.value.GroupId
 import dev.nikomaru.advancerailway.file.value.IdValidation
 import dev.nikomaru.advancerailway.file.value.RailwayId
 import dev.nikomaru.advancerailway.file.value.StationId
 import dev.nikomaru.advancerailway.route.RailEdge
-import dev.nikomaru.advancerailway.route.Route
+import dev.nikomaru.advancerailway.route.RenderedRoute
 import dev.nikomaru.advancerailway.route.RouteError
 import dev.nikomaru.advancerailway.route.RouteFinder
+import dev.nikomaru.advancerailway.route.RouteRenderer
 import dev.nikomaru.advancerailway.route.StationNode
 import dev.nikomaru.advancerailway.route.TravelMode
 import dev.nikomaru.advancerailway.route.Waypoint
+import dev.nikomaru.advancerailway.utils.GroupUtils
 import dev.nikomaru.advancerailway.utils.RailwayUtils
 import dev.nikomaru.advancerailway.utils.StationUtils
 import dev.nikomaru.advancerailway.utils.Utils.toPoint3D
@@ -35,7 +38,6 @@ import revxrsal.commands.annotation.Command
 import revxrsal.commands.annotation.Optional
 import revxrsal.commands.annotation.Subcommand
 import revxrsal.commands.bukkit.annotation.CommandPermission
-import kotlin.math.ceil
 
 /**
  * 駅間の最短（所要時間最小）経路を求めて表示するコマンド。
@@ -63,83 +65,92 @@ class RailwayRouteCommand : KoinComponent {
      */
     @Subcommand("route")
     suspend fun route(sender: CommandSender, first: StationId, @Optional second: StationId? = null) {
-        val stations = loadAllStations()
+        val stationData = loadAllStationData()
+        val stations = stationData.map { it.toNode() }
+        val stationNames = stationData.associate { it.stationId to it.name }
         if (second == null) {
             // route <to>: 現在地から first へ。
             val player = sender as? Player ?: run {
-                sender.sendRichMessage("<red>This form requires a player (uses your current location as the origin).")
+                sender.sendRichMessage("<red>この形式はプレイヤー専用です（現在地を起点にします）。")
                 return
             }
             val toNode = stations.find { it.id == first } ?: run {
-                sender.sendRichMessage("<red>Station not found: ${first.value}")
+                sender.sendRichMessage("<red>駅が見つかりません: ${first.value}")
                 return
             }
             val origin = Waypoint.Origin(player.location.world.name, player.location.toPoint3D())
-            search(sender, stations, origin, toNode)
+            search(sender, stations, stationNames, "現在地", origin, toNode)
         } else {
             // route <from> <to>: 駅から駅へ。
             val fromNode = stations.find { it.id == first } ?: run {
-                sender.sendRichMessage("<red>Station not found: ${first.value}")
+                sender.sendRichMessage("<red>駅が見つかりません: ${first.value}")
                 return
             }
             val toNode = stations.find { it.id == second } ?: run {
-                sender.sendRichMessage("<red>Station not found: ${second.value}")
+                sender.sendRichMessage("<red>駅が見つかりません: ${second.value}")
                 return
             }
-            search(sender, stations, Waypoint.Station(fromNode), toNode)
+            val originLabel = stationNames[first]?.takeIf { it.isNotBlank() } ?: first.value
+            search(sender, stations, stationNames, originLabel, Waypoint.Station(fromNode), toNode)
         }
     }
 
     private suspend fun search(
         sender: CommandSender,
         stations: List<StationNode>,
+        stationNames: Map<StationId, String>,
+        originLabel: String,
         from: Waypoint,
         to: StationNode,
     ) {
         val railways = loadAllRailways()
+        val groupNames = loadGroupNames()
         when (val result = RouteFinder.findRoute(stations, railways, from, to)) {
             is Either.Left -> when (result.value) {
                 RouteError.SameStation ->
-                    sender.sendRichMessage("<red>Departure and destination are the same station.")
+                    sender.sendRichMessage("<red>出発駅と到着駅が同じです。")
 
                 RouteError.NoPath ->
-                    sender.sendRichMessage("<red>No route found to ${to.id.value}.")
+                    sender.sendRichMessage("<red>${stationNames[to.id] ?: to.id.value} への経路が見つかりませんでした。")
             }
 
-            is Either.Right -> sendRoute(sender, from, result.value)
+            is Either.Right -> {
+                val rendered = RouteRenderer.render(
+                    result.value, originLabel, { stationNames[it] }, { groupNames[it] }
+                )
+                sendRoute(sender, rendered)
+            }
         }
     }
 
-    private fun sendRoute(sender: CommandSender, from: Waypoint, route: Route) {
-        val origin = (from as? Waypoint.Station)?.node?.id?.value ?: "(current location)"
+    private fun sendRoute(sender: CommandSender, route: RenderedRoute) {
         sender.sendRichMessage(
-            "<green>Route: $origin -> ${route.legs.last().to.value} " +
-                "<gray>(${formatMinutes(route.totalSeconds)} min, ${route.legs.size} legs)"
+            "<green>経路: <white>${esc(route.fromLabel)}</white> <gray>→</gray> <white>${esc(route.toLabel)}</white></green> " +
+                "<gray>(合計 ${route.totalMinutes} 分 / ${route.legCount} 区間)"
         )
         route.legs.forEach { leg ->
-            val fromLabel = leg.from?.value ?: "(current location)"
             val via = when (leg.mode) {
                 TravelMode.RAIL -> {
-                    val group = leg.group?.let { " <gray>[${it.value}]" } ?: ""
-                    "<gray>via</gray> <click:run_command:/ar railway info ${leg.railwayId?.value}>" +
-                        "${leg.railwayId?.value}</click>$group"
+                    val line = leg.lineLabel?.let { "<aqua>[${esc(it)}]</aqua>" } ?: "<gray>[路線]</gray>"
+                    val info = leg.railwayId
+                        ?.let { " <click:run_command:/ar railway info ${it.value}><dark_gray>[詳細]</dark_gray></click>" }
+                        ?: ""
+                    "$line$info"
                 }
 
-                TravelMode.WALK -> {
-                    "<gray>on foot"
-                }
+                TravelMode.WALK -> "<gray>徒歩</gray>"
             }
             sender.sendRichMessage(
-                "<yellow> -> </yellow>$fromLabel → ${leg.to.value} $via <gray>(${formatMinutes(leg.timeSeconds)} min)"
+                "<dark_gray>${leg.index}.</dark_gray> <white>${esc(leg.fromLabel)}</white> " +
+                    "<yellow>→</yellow> <white>${esc(leg.toLabel)}</white> $via <gray>(${leg.minutes} 分)"
             )
         }
     }
 
-    /** data/stations/ 配下のすべての駅を幾何ノードとして読み込む。 */
-    private suspend fun loadAllStations(): List<StationNode> = withContext(Dispatchers.IO) {
+    /** data/stations/ 配下のすべての駅データを読み込む（表示名の解決に使うため StationData のまま保持）。 */
+    private suspend fun loadAllStationData(): List<StationData> = withContext(Dispatchers.IO) {
         listIds("stations")
             .mapNotNull { StationUtils.getStationData(StationId(it)).getOrNull() }
-            .map { it.toNode() }
     }
 
     /** data/railways/ 配下のすべての路線をレール辺として読み込む。 */
@@ -147,6 +158,13 @@ class RailwayRouteCommand : KoinComponent {
         listIds("railways")
             .mapNotNull { RailwayUtils.getRailwayData(RailwayId(it)).getOrNull() }
             .map { RailEdge(it.id, it.fromStation, it.toStation, it.timeRequired, it.group) }
+    }
+
+    /** data/groups/ 配下のグループ ID → 表示名（路線名）のマップを読み込む。 */
+    private suspend fun loadGroupNames(): Map<GroupId, String> = withContext(Dispatchers.IO) {
+        listIds("groups")
+            .mapNotNull { GroupUtils.getGroupData(GroupId(it)).getOrNull() }
+            .associate { it.groupId to it.name }
     }
 
     /** data/{type}/ 配下の JSON ファイル名を、allowlist を満たす ID として列挙する。 */
@@ -159,6 +177,6 @@ class RailwayRouteCommand : KoinComponent {
 
     private fun StationData.toNode(): StationNode = StationNode(stationId, world.name, point)
 
-    /** 秒を「小数第 1 位までの分」へ丸める（[RailwayInfoCommand] と同じ表記）。 */
-    private fun formatMinutes(seconds: Long): Double = ceil(seconds / 6.0) / 10
+    /** MiniMessage のタグ注入を防ぐため、ユーザー由来の名前中の `<` をエスケープする。 */
+    private fun esc(text: String): String = text.replace("<", "\\<")
 }

@@ -1,0 +1,13 @@
+{
+    "id": "kmmr_nkmm",
+    "group": "kamimoriNewLine",
+    "world": "world",
+    "lineType": "UP_LINE",
+    "line": "(54.0,62.0,1072.0):(54.0,62.0,769.0)",
+    "fromStation": "kmmr",
+    "toStation": "nkmm",
+    "timeRequired": 37,
+    "startPoint": "54.0,62.0,1072.0",
+    "endPoint": "54.0,62.0,769.0",
+    "directionPoint": "54.0,62.0,1071.0"
+}

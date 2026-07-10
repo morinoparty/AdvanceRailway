@@ -1,0 +1,13 @@
+{
+    "id": "kmmj_kmmr",
+    "group": "kamimoriNewLine",
+    "world": "world",
+    "lineType": "UP_LINE",
+    "line": "(256.0,72.0,890.0):(256.0,72.0,1080.0):(252.0,72.0,1080.0):(242.0,62.0,1080.0):(59.0,62.0,1080.0)",
+    "fromStation": "kmmj",
+    "toStation": "kmmr",
+    "timeRequired": 48,
+    "startPoint": "256.0,72.0,890.0",
+    "endPoint": "59.0,62.0,1080.0",
+    "directionPoint": "256.0,72.0,891.0"
+}

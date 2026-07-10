@@ -1,0 +1,13 @@
+{
+    "id": "ysmr_nutu",
+    "group": "morimotoSuburb",
+    "world": "world",
+    "lineType": "UP_LINE",
+    "line": "(-209.0,77.0,829.0):(-209.0,77.0,507.0)",
+    "fromStation": "ysmr",
+    "toStation": "nutu",
+    "timeRequired": 40,
+    "startPoint": "-209.0,77.0,829.0",
+    "endPoint": "-209.0,77.0,507.0",
+    "directionPoint": "-209.0,77.0,828.0"
+}

@@ -1,0 +1,13 @@
+{
+    "id": "cfpp_mrmt",
+    "group": "pakapaka",
+    "world": "world",
+    "lineType": "UP_LINE",
+    "line": "(-536.0,51.0,59.0):(-536.0,51.0,45.0):(-535.0,51.0,44.0):(-535.0,51.0,-60.0):(-535.0,52.0,-62.0):(-535.0,52.0,-70.0)",
+    "fromStation": "cfp",
+    "toStation": "mrmt",
+    "timeRequired": 16,
+    "startPoint": "-536.0,51.0,59.0",
+    "endPoint": "-535.0,52.0,-70.0",
+    "directionPoint": "-536.0,51.0,58.0"
+}

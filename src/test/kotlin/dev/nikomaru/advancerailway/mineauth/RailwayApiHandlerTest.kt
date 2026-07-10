@@ -215,13 +215,19 @@ class RailwayApiHandlerTest {
         val route = handler.getRoute("st01", "st02")
 
         assertEquals("st01", route.from)
+        assertEquals("Central", route.fromName)
         assertEquals("st02", route.to)
+        assertEquals("North", route.toName)
         assertEquals(2L, route.totalTime)
         assertEquals(listOf("st01", "st02"), route.stations)
         assertEquals(1, route.legs.size)
-        assertEquals("RAIL", route.legs.first().mode)
-        assertEquals("rw01", route.legs.first().railway)
-        assertEquals("g1", route.legs.first().group)
+        val leg = route.legs.first()
+        assertEquals("RAIL", leg.mode)
+        assertEquals("rw01", leg.railway)
+        assertEquals("g1", leg.group)
+        assertEquals("Yamanote", leg.line) // the line's display name, not the group id
+        assertEquals("Central", leg.fromName)
+        assertEquals("North", leg.toName)
     }
 
     @Test
@@ -246,7 +252,9 @@ class RailwayApiHandlerTest {
         assertEquals("WALK", last.mode)
         assertNull(last.railway)
         assertNull(last.group) // the rail group must not leak onto the walk leg
+        assertNull(last.line) // walk legs have no line name
         assertEquals("st03", last.to)
+        assertEquals("Isolated", last.toName) // station name resolved on the walk leg too
         assertEquals(4L, route.totalTime)
     }
 

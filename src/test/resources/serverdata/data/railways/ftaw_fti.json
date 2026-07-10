@@ -1,0 +1,13 @@
+{
+    "id": "ftaw_fti",
+    "group": "french",
+    "world": "world",
+    "lineType": "UP_LINE",
+    "line": "(4511.0,71.0,-2072.0):(4511.0,71.0,-2414.0):(4511.0,67.0,-2422.0):(4511.0,67.0,-3566.0):(4512.0,67.0,-3567.0)",
+    "fromStation": "ftaw",
+    "toStation": "fti",
+    "timeRequired": 187,
+    "startPoint": "4511.0,71.0,-2072.0",
+    "endPoint": "4512.0,67.0,-3567.0",
+    "directionPoint": "4511.0,71.0,-2073.0"
+}

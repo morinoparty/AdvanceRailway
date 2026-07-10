@@ -1,0 +1,13 @@
+{
+    "id": "sekh_sekn",
+    "group": "yukihara",
+    "world": "world",
+    "lineType": "UP_LINE",
+    "line": "(-4967.0,77.0,-8610.0):(-4967.0,77.0,-8694.0):(-4993.0,77.0,-8720.0):(-4993.0,77.0,-8801.0)",
+    "fromStation": "sekh",
+    "toStation": "sekn",
+    "timeRequired": 25,
+    "startPoint": "-4967.0,77.0,-8610.0",
+    "endPoint": "-4993.0,77.0,-8801.0",
+    "directionPoint": "-4967.0,77.0,-8611.0"
+}

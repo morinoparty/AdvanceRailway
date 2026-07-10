@@ -1,0 +1,13 @@
+{
+    "id": "chig_unkn",
+    "group": "matsuSub",
+    "world": "world",
+    "lineType": "UP_DOWN_LINE",
+    "line": "(448.0,95.0,3260.0):(448.0,95.0,4158.0):(579.0,95.0,4158.0)",
+    "fromStation": "chig",
+    "toStation": "unkn",
+    "timeRequired": 128,
+    "startPoint": "448.0,95.0,3260.0",
+    "endPoint": "579.0,95.0,4158.0",
+    "directionPoint": "448.0,95.0,3261.0"
+}

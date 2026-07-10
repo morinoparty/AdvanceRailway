@@ -1,0 +1,13 @@
+{
+    "id": "atmw_atms",
+    "group": "atumoriLoop",
+    "world": "world",
+    "lineType": "UP_LINE",
+    "line": "(-1771.0,76.0,495.0):(-1771.0,76.0,535.0):(-1762.0,76.0,544.0):(-1761.0,76.0,545.0):(-1761.0,76.0,617.0)",
+    "fromStation": "atmw",
+    "toStation": "atms",
+    "timeRequired": 15,
+    "startPoint": "-1771.0,76.0,495.0",
+    "endPoint": "-1761.0,76.0,617.0",
+    "directionPoint": "-1771.0,76.0,496.0"
+}

@@ -143,18 +143,21 @@ A\* search:
 ```json
 {
   "from": "central",
+  "fromName": "Central Station",
   "to": "north",
+  "toName": "North Station",
   "totalTime": 150,
   "stations": ["central", "west", "north"],
   "legs": [
-    { "mode": "RAIL", "railway": "central-to-west", "from": "central", "to": "west", "timeRequired": 60, "group": "main-line" },
-    { "mode": "WALK", "railway": null, "from": "west", "to": "north", "timeRequired": 90, "group": null }
+    { "mode": "RAIL", "railway": "central-to-west", "from": "central", "fromName": "Central Station", "to": "west", "toName": "West Station", "timeRequired": 60, "group": "main-line", "line": "Main Line" },
+    { "mode": "WALK", "railway": null, "from": "west", "fromName": "West Station", "to": "north", "toName": "North Station", "timeRequired": 90, "group": null, "line": null }
   ]
 }
 ```
 
 - `mode` is `"RAIL"` (riding a railway) or `"WALK"` (walking between stations).
-- `railway` and `group` are `null` on `WALK` legs (and `group` is `null` for a railway with no group).
+- `fromName` / `toName` are the human-readable **station display names** (falling back to the id if a station has no name); `line` is the railway's **line (group) display name**. Prefer these over the raw ids for display.
+- `railway`, `group`, and `line` are `null` on `WALK` legs (and `group`/`line` are `null` for a railway with no group).
 - `totalTime` is the sum of all legs' `timeRequired`, in seconds.
 - `stations` is the ordered list of station ids passed through, from `from` to `to`.
 

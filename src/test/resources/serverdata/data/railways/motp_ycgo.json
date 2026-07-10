@@ -1,0 +1,13 @@
+{
+    "id": "motp_ycgo",
+    "group": "yukuripa",
+    "world": "world",
+    "lineType": "UP_LINE",
+    "line": "(591.0,70.0,8754.0):(591.0,70.0,9176.0):(589.0,70.0,9178.0):(589.0,70.0,9196.0)",
+    "fromStation": "motp",
+    "toStation": "ycgo",
+    "timeRequired": 55,
+    "startPoint": "591.0,70.0,8754.0",
+    "endPoint": "589.0,70.0,9196.0",
+    "directionPoint": "591.0,70.0,8755.0"
+}

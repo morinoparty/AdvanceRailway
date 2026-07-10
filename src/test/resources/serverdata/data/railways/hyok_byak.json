@@ -1,0 +1,13 @@
+{
+    "id": "hyok_byak",
+    "group": "yukuripa",
+    "world": "world",
+    "lineType": "UP_LINE",
+    "line": "(593.0,70.0,5696.0):(593.0,70.0,5051.0)",
+    "fromStation": "hyok",
+    "toStation": "byak",
+    "timeRequired": 80,
+    "startPoint": "593.0,70.0,5696.0",
+    "endPoint": "593.0,70.0,5051.0",
+    "directionPoint": "593.0,70.0,5695.0"
+}
