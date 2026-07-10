@@ -62,9 +62,8 @@ dependencies {
     compileOnly(libs.protocolLib)
 
     // MineAuth HTTP API 連携。MineAuth 本体（softdepend）から実行時に提供されるため compileOnly。
+    // ハンドラーは @Serializable な DTO をそのまま返し、シリアライズは MineAuth 側が担う。
     compileOnly(libs.mineauth.api)
-    // ハンドラーの戻り値を生 JSON（TextContent）として返すために利用。Ktor も MineAuth 側が提供する。
-    compileOnly(libs.ktor.http)
 
     implementation(libs.arrow.core)
     implementation(libs.arrow.fx.coroutines)
@@ -80,10 +79,9 @@ dependencies {
     // MockBukkit 4.110.0 が実装するレジストリ ABI に合わせ、テストでは 1.21.11 の paper-api を使う
     // （main の 26.x は compileOnly なのでテスト実行クラスパスには載らず、競合しない）。
     testImplementation(libs.paper.api.test)
-    // ハンドラーが返す TextContent / throw する HttpError をテストから参照するため
+    // ハンドラーが返す DTO / throw する HttpError をテストから参照するため
     // （main では compileOnly のためテストクラスパスには別途載せる）。
     testImplementation(libs.mineauth.api)
-    testImplementation(libs.ktor.http)
 }
 
 java {
@@ -134,7 +132,7 @@ tasks {
     shadowJar {
         // 他プラグインとの衝突を避けるため、AdvanceRailway 固有のライブラリを relocate する。
         // kotlin stdlib / kotlinx.serialization / coroutines は relocate しない
-        // （MineAuth 連携は TextContent で生 JSON を返すためシリアライザの共有は不要）。
+        // （MineAuth 連携は @Serializable DTO を返し、MineAuth 側がそのシリアライザを解決するため）。
         relocate("org.koin", "dev.nikomaru.advancerailway.libs.koin")
         relocate("arrow", "dev.nikomaru.advancerailway.libs.arrow")
         relocate("revxrsal.commands", "dev.nikomaru.advancerailway.libs.lamp")

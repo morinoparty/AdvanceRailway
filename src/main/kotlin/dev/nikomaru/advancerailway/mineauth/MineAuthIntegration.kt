@@ -13,7 +13,8 @@ import dev.nikomaru.advancerailway.AdvanceRailway
 import dev.nikomaru.advancerailway.file.data.ConfigData
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.get
-import party.morino.mineauth.api.MineAuthAPI
+import party.morino.mineauth.api.EndpointRegistrationException
+import party.morino.mineauth.api.MineAuthApi
 
 /**
  * MineAuth との連携をセットアップするエントリーポイント。
@@ -26,7 +27,11 @@ object MineAuthIntegration : KoinComponent {
      * 登録後、エンドポイントは `/api/v1/plugins/advancerailway/` 配下で利用可能になる。
      *
      * ただし [ConfigData.mineAuthEnabled] が false の場合は登録をスキップする（フェイルセーフ）。
-     * 登録した場合でも各エンドポイントは権限で保護される（[RailwayApiHandler] 参照）。
+     * 登録した場合でも各エンドポイントはサービストークンでの認証で保護される（[RailwayApiHandler] 参照）。
+     *
+     * MineAuth の [MineAuthApi] は Bukkit の ServicesManager 経由で取得する。
+     * 登録は all-or-nothing で、検証に失敗すると [EndpointRegistrationException] が送出されるため、
+     * その場合でも onEnable を巻き込まないようフェイルセーフでログのみ出力する。
      *
      * @param plugin AdvanceRailway 本体
      */
@@ -38,15 +43,19 @@ object MineAuthIntegration : KoinComponent {
             return
         }
 
-        // MineAuth 本体を安全にキャストして取得する（未導入・非対応バージョンでは null）。
-        val api = plugin.server.pluginManager.getPlugin("MineAuth") as? MineAuthAPI
+        // MineAuth 本体を ServicesManager 経由で取得する（未導入・非対応バージョンでは null）。
+        val api = MineAuthApi.get(plugin.server)
         if (api == null) {
             plugin.logger.info("MineAuth not found; skipping HTTP endpoint registration.")
             return
         }
 
-        api.createHandler(plugin)
-            .register(RailwayApiHandler())
-        plugin.logger.info("Registered MineAuth HTTP endpoints under /api/v1/plugins/advancerailway/")
+        try {
+            val registration = api.register(plugin, RailwayApiHandler())
+            plugin.logger.info("Registered MineAuth HTTP endpoints under ${registration.basePath}")
+        } catch (e: EndpointRegistrationException) {
+            // 検証エラーで登録に失敗しても AdvanceRailway 本体の起動は継続する。
+            plugin.logger.warning("Failed to register MineAuth HTTP endpoints: ${e.message}")
+        }
     }
 }

@@ -20,16 +20,14 @@ import dev.nikomaru.advancerailway.file.value.GroupId
 import dev.nikomaru.advancerailway.file.value.RailwayId
 import dev.nikomaru.advancerailway.file.value.StationId
 import dev.nikomaru.advancerailway.utils.Utils.json
-import io.ktor.http.ContentType
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.runBlocking
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import org.bukkit.World
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
@@ -72,6 +70,8 @@ class RailwayApiHandlerTest {
 
         server = MockBukkit.mock()
         world = server.addSimpleWorld("world")
+        // 別ワールド（経路探索のクロスワールド NoPath ケース用）。
+        server.addSimpleWorld("world_nether")
 
         dataFolder = Files.createTempDirectory("advancerailway-test").toFile()
 
@@ -94,17 +94,15 @@ class RailwayApiHandlerTest {
     }
 
     @Test
-    @DisplayName("getStation returns the station as application/json")
-    fun getStationReturnsJson() = runBlocking {
-        val response = handler.getStation("st01")
+    @DisplayName("getStation returns the station DTO")
+    fun getStationReturnsDto() = runBlocking {
+        val station = handler.getStation("st01")
 
-        assertEquals(ContentType.Application.Json, response.contentType)
-        val obj = json.parseToJsonElement(response.text).jsonObject
-        assertEquals("st01", obj["id"]!!.jsonPrimitive.content)
-        assertEquals("Central", obj["name"]!!.jsonPrimitive.content)
-        assertEquals("world", obj["world"]!!.jsonPrimitive.content)
-        assertEquals("#FF7F00", obj["color"]!!.jsonPrimitive.content)
-        assertEquals("64.0", obj["point"]!!.jsonObject["y"]!!.jsonPrimitive.content)
+        assertEquals("st01", station.id)
+        assertEquals("Central", station.name)
+        assertEquals("world", station.world)
+        assertEquals("#FF7F00", station.color)
+        assertEquals(64.0, station.point.y)
     }
 
     @Test
@@ -130,23 +128,21 @@ class RailwayApiHandlerTest {
     fun listStationsReturnsAll() = runBlocking {
         val response = handler.listStations()
 
-        val stations = json.parseToJsonElement(response.text).jsonObject["stations"]!!.jsonArray
-        assertEquals(2, stations.size)
-        val ids = stations.map { it.jsonObject["id"]!!.jsonPrimitive.content }.toSet()
-        assertEquals(setOf("st01", "st02"), ids)
+        assertEquals(4, response.stations.size)
+        val ids = response.stations.map { it.id }.toSet()
+        assertEquals(setOf("st01", "st02", "st03", "nt01"), ids)
     }
 
     @Test
     @DisplayName("getRailway maps line/stations/points to the DTO")
-    fun getRailwayReturnsJson() = runBlocking {
-        val response = handler.getRailway("rw01")
+    fun getRailwayReturnsDto() = runBlocking {
+        val railway = handler.getRailway("rw01")
 
-        val obj = json.parseToJsonElement(response.text).jsonObject
-        assertEquals("rw01", obj["id"]!!.jsonPrimitive.content)
-        assertEquals("UP_LINE", obj["lineType"]!!.jsonPrimitive.content)
-        assertEquals("st01", obj["fromStation"]!!.jsonPrimitive.content)
-        assertEquals("st02", obj["toStation"]!!.jsonPrimitive.content)
-        assertEquals("120", obj["timeRequired"]!!.jsonPrimitive.content)
+        assertEquals("rw01", railway.id)
+        assertEquals("UP_LINE", railway.lineType)
+        assertEquals("st01", railway.fromStation)
+        assertEquals("st02", railway.toStation)
+        assertEquals(2L, railway.timeRequired)
     }
 
     @Test
@@ -154,9 +150,8 @@ class RailwayApiHandlerTest {
     fun listRailwaysReturnsAll() = runBlocking {
         val response = handler.listRailways()
 
-        val railways = json.parseToJsonElement(response.text).jsonObject["railways"]!!.jsonArray
-        assertEquals(1, railways.size)
-        assertEquals("rw01", railways.first().jsonObject["id"]!!.jsonPrimitive.content)
+        assertEquals(1, response.railways.size)
+        assertEquals("rw01", response.railways.first().id)
     }
 
     @Test
@@ -182,20 +177,18 @@ class RailwayApiHandlerTest {
     fun listGroupsReturnsAll() = runBlocking {
         val response = handler.listGroups()
 
-        val groups = json.parseToJsonElement(response.text).jsonObject["groups"]!!.jsonArray
-        assertEquals(1, groups.size)
-        assertEquals("g1", groups.first().jsonObject["id"]!!.jsonPrimitive.content)
+        assertEquals(1, response.groups.size)
+        assertEquals("g1", response.groups.first().id)
     }
 
     @Test
     @DisplayName("getGroup returns the group with a hex color")
-    fun getGroupReturnsJson() = runBlocking {
-        val response = handler.getGroup("g1")
+    fun getGroupReturnsDto() = runBlocking {
+        val group = handler.getGroup("g1")
 
-        val obj = json.parseToJsonElement(response.text).jsonObject
-        assertEquals("g1", obj["id"]!!.jsonPrimitive.content)
-        assertEquals("Yamanote", obj["name"]!!.jsonPrimitive.content)
-        assertEquals("#00FF00", obj["color"]!!.jsonPrimitive.content)
+        assertEquals("g1", group.id)
+        assertEquals("Yamanote", group.name)
+        assertEquals("#00FF00", group.color)
     }
 
     @Test
@@ -216,13 +209,99 @@ class RailwayApiHandlerTest {
         assertEquals(HttpStatus.NOT_FOUND, error.status)
     }
 
+    @Test
+    @DisplayName("getRoute picks the fast rail leg between connected stations")
+    fun getRouteReturnsRoute() = runBlocking {
+        val route = handler.getRoute("st01", "st02")
+
+        assertEquals("st01", route.from)
+        assertEquals("st02", route.to)
+        assertEquals(2L, route.totalTime)
+        assertEquals(listOf("st01", "st02"), route.stations)
+        assertEquals(1, route.legs.size)
+        assertEquals("RAIL", route.legs.first().mode)
+        assertEquals("rw01", route.legs.first().railway)
+        assertEquals("g1", route.legs.first().group)
+    }
+
+    @Test
+    @DisplayName("getRoute is undirected: the reverse direction also routes by rail")
+    fun getRouteReverse() = runBlocking {
+        val route = handler.getRoute("st02", "st01")
+
+        assertEquals(listOf("st02", "st01"), route.stations)
+        assertEquals("RAIL", route.legs.first().mode)
+        assertEquals(2L, route.totalTime)
+    }
+
+    @Test
+    @DisplayName("getRoute reaches a rail-disconnected station via rail then a final walk")
+    fun getRouteWalkingFallback() = runBlocking {
+        // st03 has no railway; the cheapest path is rail st01->st02 then a short walk to st03.
+        val route = handler.getRoute("st01", "st03")
+
+        assertEquals(listOf("st01", "st02", "st03"), route.stations)
+        assertEquals("RAIL", route.legs.first().mode)
+        val last = route.legs.last()
+        assertEquals("WALK", last.mode)
+        assertNull(last.railway)
+        assertNull(last.group) // the rail group must not leak onto the walk leg
+        assertEquals("st03", last.to)
+        assertEquals(4L, route.totalTime)
+    }
+
+    @Test
+    @DisplayName("getRoute throws BAD_REQUEST when from equals to")
+    fun getRouteSameStation() {
+        val error = assertThrows<HttpError> {
+            runBlocking { handler.getRoute("st01", "st01") }
+        }
+        assertEquals(HttpStatus.BAD_REQUEST, error.status)
+        assertEquals("same_station", error.code)
+    }
+
+    @Test
+    @DisplayName("getRoute throws NOT_FOUND (no_route) for a station in another world with no bridging rail")
+    fun getRouteNoPath() {
+        val error = assertThrows<HttpError> {
+            runBlocking { handler.getRoute("st01", "nt01") }
+        }
+        assertEquals(HttpStatus.NOT_FOUND, error.status)
+        assertEquals("no_route", error.code)
+    }
+
+    @Test
+    @DisplayName("getRoute throws NOT_FOUND (station_not_found) for an unknown station")
+    fun getRouteUnknownStation() {
+        val error = assertThrows<HttpError> {
+            runBlocking { handler.getRoute("st01", "does-not-exist") }
+        }
+        assertEquals(HttpStatus.NOT_FOUND, error.status)
+        assertEquals("station_not_found", error.code)
+    }
+
+    @Test
+    @DisplayName("getRoute rejects a path-traversal station id before touching disk")
+    fun getRouteRejectsInvalidId() {
+        val error = assertThrows<HttpError> {
+            runBlocking { handler.getRoute("../config", "st02") }
+        }
+        assertEquals(HttpStatus.NOT_FOUND, error.status)
+        assertEquals("station_not_found", error.code)
+    }
+
     /**
      * テスト用の駅・路線・グループを実際のシリアライズ形式で dataFolder へ書き出す。
      */
     private fun writeFixtures() {
         writeStation("st01", "Central", Point3D(1.0, 64.0, -3.0), Color(255, 127, 0))
         writeStation("st02", "North", Point3D(5.0, 64.0, 10.0), Color(0, 0, 255))
+        // st03 は路線に接続されない孤立駅（同一ワールドなので徒歩フォールバックで到達できる）。
+        writeStation("st03", "Isolated", Point3D(9.0, 64.0, 20.0), Color(128, 128, 128))
+        // nt01 は別ワールドの駅（レール未接続 → クロスワールドで NoPath）。
+        writeStation("nt01", "Nether", Point3D(0.0, 64.0, 0.0), Color(200, 0, 0), server.getWorld("world_nether")!!)
 
+        // rw01 の所要時間は徒歩（約 3 秒）より速い 2 秒とし、st01<->st02 ではレールが選ばれるようにする。
         val railway = RailwayData(
             id = RailwayId("rw01"),
             group = GroupId("g1"),
@@ -231,7 +310,7 @@ class RailwayApiHandlerTest {
             line = Line3D(Point3D(1.0, 64.0, -3.0), Point3D(5.0, 64.0, 10.0)),
             fromStation = StationId("st01"),
             toStation = StationId("st02"),
-            timeRequired = 120L,
+            timeRequired = 2L,
             startPoint = Point3D(1.0, 64.0, -3.0),
             endPoint = Point3D(5.0, 64.0, 10.0),
             directionPoint = Point3D(2.0, 64.0, -3.0),
@@ -242,12 +321,12 @@ class RailwayApiHandlerTest {
         write("groups", "g1", json.encodeToString(group))
     }
 
-    private fun writeStation(id: String, name: String, point: Point3D, color: Color) {
+    private fun writeStation(id: String, name: String, point: Point3D, color: Color, inWorld: World = world) {
         val station = StationData(
             stationId = StationId(id),
             name = name,
             numbering = null,
-            world = world,
+            world = inWorld,
             point = point,
             overrideSize = null,
             color = color,

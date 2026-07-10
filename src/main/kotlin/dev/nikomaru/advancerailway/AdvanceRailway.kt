@@ -20,6 +20,7 @@ import dev.nikomaru.advancerailway.commands.group.GroupMainCommand
 import dev.nikomaru.advancerailway.commands.railway.RailwayEditCommand
 import dev.nikomaru.advancerailway.commands.railway.RailwayInfoCommand
 import dev.nikomaru.advancerailway.commands.railway.RailwayMainCommand
+import dev.nikomaru.advancerailway.commands.railway.RailwayRouteCommand
 import dev.nikomaru.advancerailway.commands.station.StationEditCommand
 import dev.nikomaru.advancerailway.commands.station.StationInfoCommand
 import dev.nikomaru.advancerailway.commands.station.StationMainCommand
@@ -128,6 +129,7 @@ open class AdvanceRailway: SuspendingJavaPlugin() {
             register(RailwayMainCommand())
             register(RailwayInfoCommand())
             register(RailwayEditCommand())
+            register(RailwayRouteCommand())
             register(StationMainCommand())
             register(StationInfoCommand())
             register(StationEditCommand())

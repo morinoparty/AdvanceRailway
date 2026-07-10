@@ -20,18 +20,23 @@ normally.
 | GET | `/railways/{id}` | Get a single railway by id |
 | GET | `/groups` | List all groups |
 | GET | `/groups/{id}` | Get a single group by id |
+| GET | `/route?from={id}&to={id}` | Find the fastest route between two stations |
 
 Paths above are relative to the `/api/v1/plugins/advancerailway/` base path, e.g. the full path for listing
 stations is `/api/v1/plugins/advancerailway/stations`.
 
 A by-id request for an id that does not exist returns an HTTP `404 Not Found` error.
 
-## Authentication / permissions
+## Authentication
 
-All six endpoints are gated with the `@Permission("advancerailway.mineauth.read")` annotation, so a
-caller must hold the `advancerailway.mineauth.read` permission node (enforced by MineAuth) to read
-railway data. The endpoints expose exact in-world coordinates, so grant this node only to trusted
-callers.
+All endpoints are declared `@Authenticated(callers = [CallerType.SERVICE])`, so they can only be
+called with a **service-account token** — a trusted credential that a server administrator issues via
+MineAuth. Player user tokens (issued through MineAuth's OAuth2 flow) are rejected. The endpoints expose
+exact in-world coordinates, so issue service tokens only to trusted backend integrations.
+
+Because service tokens are treated as trusted credentials, MineAuth does **not** evaluate any Bukkit
+permission node for them; access is controlled purely by whether the caller holds a valid service token.
+(This replaces the previous `advancerailway.mineauth.read` permission-node gate.)
 
 The integration can also be disabled entirely via config (`mineAuthEnabled: false` in the plugin
 config); when disabled, `MineAuthIntegration` does not register the handler even if MineAuth is present.
@@ -120,3 +125,46 @@ All responses are JSON, encoded with `kotlinx.serialization`.
 ```
 
 `GET /groups/{id}` returns a single group object (unwrapped).
+
+### Route
+
+`GET /route?from={id}&to={id}` computes the fastest (least total travel time) route between two stations.
+Both `from` and `to` are **required** query parameters; omitting either returns `400 Bad Request`.
+
+The network is modelled as a weighted graph with two kinds of edges, and the fastest path is found with
+A\* search:
+
+- **Rail edges** — each railway is an undirected edge weighted by its `timeRequired` (seconds).
+  Directional routing (`UP_LINE` / `DOWN_LINE`) is not yet distinguished.
+- **Walking edges** — any two stations **in the same world** are also connected by walking, weighted by
+  their straight-line horizontal distance ÷ the Minecraft walk speed (`4.317` blocks/s). This lets a route
+  reach stations that no railway connects. Stations in **different worlds** are only reachable via rail.
+
+```json
+{
+  "from": "central",
+  "to": "north",
+  "totalTime": 150,
+  "stations": ["central", "west", "north"],
+  "legs": [
+    { "mode": "RAIL", "railway": "central-to-west", "from": "central", "to": "west", "timeRequired": 60, "group": "main-line" },
+    { "mode": "WALK", "railway": null, "from": "west", "to": "north", "timeRequired": 90, "group": null }
+  ]
+}
+```
+
+- `mode` is `"RAIL"` (riding a railway) or `"WALK"` (walking between stations).
+- `railway` and `group` are `null` on `WALK` legs (and `group` is `null` for a railway with no group).
+- `totalTime` is the sum of all legs' `timeRequired`, in seconds.
+- `stations` is the ordered list of station ids passed through, from `from` to `to`.
+
+The command form `/ar railway route <to>` additionally supports routing from a player's current location,
+but the HTTP endpoint only accepts station ids.
+
+Error responses carry a machine-readable `code`:
+
+| Status | `code` | When |
+| --- | --- | --- |
+| `404 Not Found` | `station_not_found` | `from` or `to` is not a valid/existing station |
+| `400 Bad Request` | `same_station` | `from` and `to` are the same station |
+| `404 Not Found` | `no_route` | the two stations are not connected by any path |
