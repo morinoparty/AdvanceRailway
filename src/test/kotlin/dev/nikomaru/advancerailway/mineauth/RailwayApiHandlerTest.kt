@@ -298,6 +298,77 @@ class RailwayApiHandlerTest {
         assertEquals("station_not_found", error.code)
     }
 
+    @Test
+    @DisplayName("stationRailways returns railways touching the station")
+    fun stationRailwaysReturnsTouching() = runBlocking {
+        val response = handler.stationRailways("st01")
+        assertEquals(1, response.railways.size)
+        assertEquals("rw01", response.railways.first().id)
+    }
+
+    @Test
+    @DisplayName("stationRailways returns empty for a station with no railways")
+    fun stationRailwaysEmptyForIsolated() = runBlocking {
+        assertTrue(handler.stationRailways("st03").railways.isEmpty())
+    }
+
+    @Test
+    @DisplayName("stationRailways throws NOT_FOUND for an unknown station")
+    fun stationRailwaysNotFound() {
+        val error = assertThrows<HttpError> { runBlocking { handler.stationRailways("missing") } }
+        assertEquals(HttpStatus.NOT_FOUND, error.status)
+    }
+
+    @Test
+    @DisplayName("groupRailways returns railways belonging to the group")
+    fun groupRailwaysReturnsMembers() = runBlocking {
+        val response = handler.groupRailways("g1")
+        assertEquals(1, response.railways.size)
+        assertEquals("rw01", response.railways.first().id)
+    }
+
+    @Test
+    @DisplayName("groupRailways throws NOT_FOUND for an unknown group")
+    fun groupRailwaysNotFound() {
+        val error = assertThrows<HttpError> { runBlocking { handler.groupRailways("missing") } }
+        assertEquals(HttpStatus.NOT_FOUND, error.status)
+    }
+
+    @Test
+    @DisplayName("nearestStation returns the closest station in the world")
+    fun nearestStationReturnsClosest() = runBlocking {
+        // (2,-3) is nearest to st01 (1,64,-3); y is ignored.
+        val station = handler.nearestStation("world", 2.0, -3.0)
+        assertEquals("st01", station.id)
+    }
+
+    @Test
+    @DisplayName("nearestStation only considers stations in the requested world")
+    fun nearestStationRespectsWorld() = runBlocking {
+        // In the nether only nt01 exists, so it wins regardless of coordinates.
+        val station = handler.nearestStation("world_nether", 999.0, 999.0)
+        assertEquals("nt01", station.id)
+    }
+
+    @Test
+    @DisplayName("nearestStation throws NOT_FOUND (no_station) when the world has no stations")
+    fun nearestStationNoStation() {
+        val error = assertThrows<HttpError> {
+            runBlocking { handler.nearestStation("world_the_end", 0.0, 0.0) }
+        }
+        assertEquals(HttpStatus.NOT_FOUND, error.status)
+        assertEquals("no_station", error.code)
+    }
+
+    @Test
+    @DisplayName("stats returns the network counts")
+    fun statsReturnsCounts() = runBlocking {
+        val stats = handler.stats()
+        assertEquals(4, stats.stations) // st01, st02, st03, nt01
+        assertEquals(1, stats.railways)
+        assertEquals(1, stats.groups)
+    }
+
     /**
      * テスト用の駅・路線・グループを実際のシリアライズ形式で dataFolder へ書き出す。
      */

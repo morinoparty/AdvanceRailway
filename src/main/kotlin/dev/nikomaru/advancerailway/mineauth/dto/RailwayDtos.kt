@@ -116,3 +116,11 @@ data class RouteResponse(
     val stations: List<String>,
     val legs: List<RouteLegDto>,
 )
+
+/** ネットワークの件数サマリ。 */
+@Serializable
+data class StatsResponse(
+    val stations: Int,
+    val railways: Int,
+    val groups: Int,
+)

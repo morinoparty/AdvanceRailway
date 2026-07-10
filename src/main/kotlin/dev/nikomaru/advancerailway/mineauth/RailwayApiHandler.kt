@@ -10,6 +10,7 @@
 package dev.nikomaru.advancerailway.mineauth
 
 import dev.nikomaru.advancerailway.AdvanceRailway
+import dev.nikomaru.advancerailway.Point3D
 import dev.nikomaru.advancerailway.file.data.GroupData
 import dev.nikomaru.advancerailway.file.data.RailwayData
 import dev.nikomaru.advancerailway.file.data.StationData
@@ -26,6 +27,7 @@ import dev.nikomaru.advancerailway.mineauth.dto.RouteLegDto
 import dev.nikomaru.advancerailway.mineauth.dto.RouteResponse
 import dev.nikomaru.advancerailway.mineauth.dto.StationDto
 import dev.nikomaru.advancerailway.mineauth.dto.StationsResponse
+import dev.nikomaru.advancerailway.mineauth.dto.StatsResponse
 import dev.nikomaru.advancerailway.route.RailEdge
 import dev.nikomaru.advancerailway.route.Route
 import dev.nikomaru.advancerailway.route.RouteError
@@ -97,11 +99,7 @@ class RailwayApiHandler : KoinComponent {
         @Query("offset") offset: Int? = null,
     ): StationsResponse {
         val (skip, take) = paging(limit, offset)
-        val stations = listIds("stations")
-            .drop(skip)
-            .take(take)
-            .mapNotNull { StationUtils.getStationData(StationId(it)).getOrNull() }
-            .map { it.toDto() }
+        val stations = allStations().drop(skip).take(take).map { it.toDto() }
         return StationsResponse(stations)
     }
 
@@ -129,11 +127,7 @@ class RailwayApiHandler : KoinComponent {
         @Query("offset") offset: Int? = null,
     ): RailwaysResponse {
         val (skip, take) = paging(limit, offset)
-        val railways = listIds("railways")
-            .drop(skip)
-            .take(take)
-            .mapNotNull { RailwayUtils.getRailwayData(RailwayId(it)).getOrNull() }
-            .map { it.toDto() }
+        val railways = allRailways().drop(skip).take(take).map { it.toDto() }
         return RailwaysResponse(railways)
     }
 
@@ -161,11 +155,7 @@ class RailwayApiHandler : KoinComponent {
         @Query("offset") offset: Int? = null,
     ): GroupsResponse {
         val (skip, take) = paging(limit, offset)
-        val groups = listIds("groups")
-            .drop(skip)
-            .take(take)
-            .mapNotNull { GroupUtils.getGroupData(GroupId(it)).getOrNull() }
-            .map { it.toDto() }
+        val groups = allGroups().drop(skip).take(take).map { it.toDto() }
         return GroupsResponse(groups)
     }
 
@@ -197,18 +187,14 @@ class RailwayApiHandler : KoinComponent {
         @Query("from") from: String,
         @Query("to") to: String,
     ): RouteResponse {
-        val stationData = listIds("stations")
-            .mapNotNull { StationUtils.getStationData(StationId(it)).getOrNull() }
+        val stationData = allStations()
         val stations = stationData.map { StationNode(it.stationId, it.world.name, it.point) }
         val stationNames = stationData.associate { it.stationId.value to it.name }
         val fromNode = requireStation(from, stations)
         val toNode = requireStation(to, stations)
-        val railways = listIds("railways")
-            .mapNotNull { RailwayUtils.getRailwayData(RailwayId(it)).getOrNull() }
+        val railways = allRailways()
             .map { RailEdge(it.id, it.fromStation, it.toStation, it.timeRequired, it.group) }
-        val groupNames = listIds("groups")
-            .mapNotNull { GroupUtils.getGroupData(GroupId(it)).getOrNull() }
-            .associate { it.groupId.value to it.name }
+        val groupNames = allGroups().associate { it.groupId.value to it.name }
         return when (val result = RouteFinder.findRoute(stations, railways, Waypoint.Station(fromNode), toNode)) {
             is Either.Left -> when (result.value) {
                 RouteError.SameStation -> throw HttpError(
@@ -225,6 +211,69 @@ class RailwayApiHandler : KoinComponent {
     }
 
     /**
+     * 指定した駅に接続する路線一覧を取得する（from/to のいずれかがその駅）。
+     * GET /stations/{id}/railways
+     */
+    @Get("/stations/{id}/railways")
+    @Authenticated(callers = [CallerType.SERVICE])
+    suspend fun stationRailways(@Path("id") id: String): RailwaysResponse {
+        if (!IdValidation.isValid(id)) throw HttpError(HttpStatus.NOT_FOUND, "Station not found: $id")
+        StationUtils.getStationData(StationId(id)).getOrNull()
+            ?: throw HttpError(HttpStatus.NOT_FOUND, "Station not found: $id")
+        val railways = allRailways()
+            .filter { it.fromStation.value == id || it.toStation.value == id }
+            .map { it.toDto() }
+        return RailwaysResponse(railways)
+    }
+
+    /**
+     * 指定したグループ（路線）に属する路線一覧を取得する。
+     * GET /groups/{id}/railways
+     */
+    @Get("/groups/{id}/railways")
+    @Authenticated(callers = [CallerType.SERVICE])
+    suspend fun groupRailways(@Path("id") id: String): RailwaysResponse {
+        if (!IdValidation.isValid(id)) throw HttpError(HttpStatus.NOT_FOUND, "Group not found: $id")
+        GroupUtils.getGroupData(GroupId(id)).getOrNull()
+            ?: throw HttpError(HttpStatus.NOT_FOUND, "Group not found: $id")
+        val railways = allRailways().filter { it.group?.value == id }.map { it.toDto() }
+        return RailwaysResponse(railways)
+    }
+
+    /**
+     * 指定座標に最も近い駅を取得する（同一ワールド内、水平距離）。
+     * GET /nearest-station?world={world}&x={x}&z={z}
+     * - 同一ワールドに駅が 1 つも無い場合は 404 `no_station`。
+     */
+    @Get("/nearest-station")
+    @Authenticated(callers = [CallerType.SERVICE])
+    suspend fun nearestStation(
+        @Query("world") world: String,
+        @Query("x") x: Double,
+        @Query("z") z: Double,
+    ): StationDto {
+        val target = Point3D(x, 0.0, z)
+        val nearest = allStations()
+            .filter { it.world.name == world }
+            .minByOrNull { it.point.distanceTo2D(target) }
+            ?: throw HttpError(HttpStatus.NOT_FOUND, "No station in world: $world", code = "no_station")
+        return nearest.toDto()
+    }
+
+    /**
+     * ネットワークの件数サマリを取得する。
+     * GET /stats
+     */
+    @Get("/stats")
+    @Authenticated(callers = [CallerType.SERVICE])
+    suspend fun stats(): StatsResponse =
+        StatsResponse(
+            stations = listIds("stations").size,
+            railways = listIds("railways").size,
+            groups = listIds("groups").size,
+        )
+
+    /**
      * 経路探索用に駅 ID を検証し、読み込み済みノードから解決する。
      * 不正な ID または存在しない駅は 404 `station_not_found` として弾く。
      */
@@ -234,6 +283,52 @@ class RailwayApiHandler : KoinComponent {
         }
         return stations.find { it.id.value == id }
             ?: throw HttpError(HttpStatus.NOT_FOUND, "Station not found: $id", code = "station_not_found")
+    }
+
+    // 各種データの全件読み込みキャッシュ。フォルダ署名（ファイル名＋更新時刻）が変わらない限り再パースしない。
+    // FileLoader.load()（reload）でファイルが書き換わると署名が変わり、次回アクセスで自動更新される。
+    @Volatile
+    private var stationsCache: Pair<String, List<StationData>>? = null
+
+    @Volatile
+    private var railwaysCache: Pair<String, List<RailwayData>>? = null
+
+    @Volatile
+    private var groupsCache: Pair<String, List<GroupData>>? = null
+
+    /** data/{type}/ 配下のフォルダ署名（ファイル名＋更新時刻）。 */
+    private fun signature(type: String): String {
+        val folder = plugin.dataFolder.resolve("data").resolve(type)
+        val files = folder.listFiles { f: File -> f.isFile && f.extension == "json" }?.sortedBy { it.name }
+            ?: return ""
+        return files.joinToString("|") { "${it.name}:${it.lastModified()}" }
+    }
+
+    /** 全駅データ（キャッシュ付き）。 */
+    private suspend fun allStations(): List<StationData> {
+        val sig = signature("stations")
+        stationsCache?.let { if (it.first == sig) return it.second }
+        val fresh = listIds("stations").mapNotNull { StationUtils.getStationData(StationId(it)).getOrNull() }
+        stationsCache = sig to fresh
+        return fresh
+    }
+
+    /** 全路線データ（キャッシュ付き）。 */
+    private suspend fun allRailways(): List<RailwayData> {
+        val sig = signature("railways")
+        railwaysCache?.let { if (it.first == sig) return it.second }
+        val fresh = listIds("railways").mapNotNull { RailwayUtils.getRailwayData(RailwayId(it)).getOrNull() }
+        railwaysCache = sig to fresh
+        return fresh
+    }
+
+    /** 全グループデータ（キャッシュ付き）。 */
+    private suspend fun allGroups(): List<GroupData> {
+        val sig = signature("groups")
+        groupsCache?.let { if (it.first == sig) return it.second }
+        val fresh = listIds("groups").mapNotNull { GroupUtils.getGroupData(GroupId(it)).getOrNull() }
+        groupsCache = sig to fresh
+        return fresh
     }
 
     /**
