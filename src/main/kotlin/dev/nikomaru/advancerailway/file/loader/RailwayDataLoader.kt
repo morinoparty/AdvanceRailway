@@ -10,6 +10,7 @@
 package dev.nikomaru.advancerailway.file.loader
 
 import dev.nikomaru.advancerailway.AdvanceRailway
+import dev.nikomaru.advancerailway.file.DataPaths
 import dev.nikomaru.advancerailway.file.data.RailwayData
 import dev.nikomaru.advancerailway.file.type.LineType
 import dev.nikomaru.advancerailway.utils.Utils.json
@@ -27,8 +28,8 @@ import kotlin.math.ceil
 class RailwayDataLoader: KoinComponent {
     private val plugin: AdvanceRailway by inject()
     private val provider: SimpleLayerProvider by inject()
-    private val railwayDataFolder = plugin.dataFolder.resolve("data").resolve("railways")
-    private val groupDataFolder = plugin.dataFolder.resolve("data").resolve("groups")
+    private val railwayDataFolder = DataPaths.railways
+    private val groupDataFolder = DataPaths.groups
 
 
     suspend fun load() {
@@ -51,17 +52,36 @@ class RailwayDataLoader: KoinComponent {
                 LineType.UP_DOWN_LINE -> "<->"
                 else -> "->"
             }
+            // 参照先を 1 度だけ解決する。削除済み等で解決できない場合は警告を出し、
+            // ツールチップにリテラル "null" を出さないよう ID をプレースホルダとして表示する。
+            val fromData = data.fromStation.toData()
+            val toData = data.toStation.toData()
+            val groupData = data.group?.toData()
+            if (fromData == null || toData == null) {
+                plugin.logger.warning(
+                    "Railway '${data.id.value}' references missing station(s): " +
+                        "from=${data.fromStation.value}${if (fromData == null) " (missing)" else ""}, " +
+                        "to=${data.toStation.value}${if (toData == null) " (missing)" else ""}"
+                )
+            }
+            if (data.group != null && groupData == null) {
+                plugin.logger.warning(
+                    "Railway '${data.id.value}' references missing group: ${data.group.value}"
+                )
+            }
+            val fromName = fromData?.name ?: data.fromStation.value
+            val toName = toData?.name ?: data.toStation.value
             val option = MarkerOptions.builder().clickTooltip("""
-                行き先 : ${data.fromStation.toData()?.name} $arrow ${data.toStation.toData()?.name} </span><br/>
+                行き先 : $fromName $arrow $toName </span><br/>
                 所要時間 : 約 ${ceil(data.timeRequired / 6.0) / 10} 分 </span><br/>
-                ${data.group?.let { "${it.toData()?.name}" } ?: ""}
+                ${groupData?.name ?: ""}
             """.trimIndent())
             val random = Random()
             random.setSeed(data.group.hashCode().toLong())
             val randomColor = Color(
                 random.nextInt(256), random.nextInt(256), random.nextInt(256)
             )
-            val color = data.group?.let { it.toData()?.railwayColor ?: randomColor } ?: randomColor
+            val color = groupData?.railwayColor ?: randomColor
             option.fillColor(color)
             option.strokeColor(color)
             marker.markerOptions(option)

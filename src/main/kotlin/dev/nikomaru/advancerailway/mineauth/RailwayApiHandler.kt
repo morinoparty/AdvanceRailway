@@ -9,8 +9,8 @@
 
 package dev.nikomaru.advancerailway.mineauth
 
-import dev.nikomaru.advancerailway.AdvanceRailway
 import dev.nikomaru.advancerailway.Point3D
+import dev.nikomaru.advancerailway.file.DataPaths
 import dev.nikomaru.advancerailway.file.data.GroupData
 import dev.nikomaru.advancerailway.file.data.RailwayData
 import dev.nikomaru.advancerailway.file.data.StationData
@@ -40,8 +40,6 @@ import dev.nikomaru.advancerailway.utils.StationUtils
 import arrow.core.Either
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.koin.core.component.KoinComponent
-import org.koin.core.component.inject
 import party.morino.mineauth.api.CallerType
 import party.morino.mineauth.api.annotations.Authenticated
 import party.morino.mineauth.api.annotations.Get
@@ -63,8 +61,7 @@ import java.io.File
  * ハンドラーは [kotlinx.serialization.Serializable] な DTO をそのまま返し、
  * JSON へのシリアライズは MineAuth 側が担う。
  */
-class RailwayApiHandler : KoinComponent {
-    private val plugin: AdvanceRailway by inject()
+class RailwayApiHandler {
 
     companion object {
         /** limit 未指定時に返す件数の既定値。 */
@@ -298,7 +295,7 @@ class RailwayApiHandler : KoinComponent {
 
     /** data/{type}/ 配下のフォルダ署名（ファイル名＋更新時刻）。 */
     private fun signature(type: String): String {
-        val folder = plugin.dataFolder.resolve("data").resolve(type)
+        val folder = DataPaths.of(type)
         val files = folder.listFiles { f: File -> f.isFile && f.extension == "json" }?.sortedBy { it.name }
             ?: return ""
         return files.joinToString("|") { "${it.name}:${it.lastModified()}" }
@@ -335,7 +332,7 @@ class RailwayApiHandler : KoinComponent {
      * data/{type}/ 配下の JSON ファイル名（拡張子なし）を ID として列挙する。
      */
     private suspend fun listIds(type: String): List<String> = withContext(Dispatchers.IO) {
-        val folder = plugin.dataFolder.resolve("data").resolve(type)
+        val folder = DataPaths.of(type)
         if (!folder.exists()) return@withContext emptyList()
         folder.listFiles(File::isFile)
             ?.filter { it.extension == "json" }

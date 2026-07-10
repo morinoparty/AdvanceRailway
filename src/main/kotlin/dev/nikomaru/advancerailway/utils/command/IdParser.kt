@@ -9,7 +9,7 @@
 
 package dev.nikomaru.advancerailway.utils.command
 
-import dev.nikomaru.advancerailway.AdvanceRailway
+import dev.nikomaru.advancerailway.file.DataPaths
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
@@ -17,8 +17,6 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.bukkit.command.CommandSender
-import org.koin.core.component.KoinComponent
-import org.koin.core.component.inject
 import revxrsal.commands.bukkit.BukkitCommandHandler
 import revxrsal.commands.bukkit.sender
 import revxrsal.commands.command.CommandActor
@@ -83,10 +81,9 @@ abstract class IdParser<T : Any>(
     private val idFactory: (String) -> T,
     /** JSON field holding the display name, or null if this entity type has no name. */
     private val nameField: String? = null,
-) : ValueParser<T>(), KoinComponent {
-    val plugin: AdvanceRailway by inject()
+) : ValueParser<T>() {
 
-    private val folder get() = plugin.dataFolder.resolve("data").resolve(subfolder)
+    private val folder get() = DataPaths.of(subfolder)
 
     // 補完はキーストローク毎に呼ばれるため、フォルダ署名でキャッシュし変化が無ければ再パースしない。
     @Volatile
@@ -118,9 +115,9 @@ abstract class IdParser<T : Any>(
 
     protected fun BukkitCommandHandler.registerIdParser() {
         // Note: do NOT call ensureDataFolder() here. This runs from setCommand(), which
-        // executes before Koin is started (setupKoin()), and folder access resolves the
-        // lazily-injected `plugin` via Koin. Data folders are created explicitly, after
-        // Koin startup, by AdvanceRailway.onEnableAsync().
+        // executes early during startup; folder access goes through DataPaths, which reads
+        // the lateinit AdvanceRailway.plugin. Data folders are created explicitly later,
+        // after plugin/Koin startup, by AdvanceRailway.onEnableAsync().
         autoCompleter.registerParameterSuggestions(
             idType,
         ) { args: List<String>, sender: CommandActor, command: ExecutableCommand ->

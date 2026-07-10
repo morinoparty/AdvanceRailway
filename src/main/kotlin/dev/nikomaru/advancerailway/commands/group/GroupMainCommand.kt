@@ -10,7 +10,7 @@
 package dev.nikomaru.advancerailway.commands.group
 
 import dev.nikomaru.advancerailway.AdvanceRailway
-import dev.nikomaru.advancerailway.commands.DataPaths
+import dev.nikomaru.advancerailway.file.DataPaths
 import dev.nikomaru.advancerailway.file.FileLoader
 import dev.nikomaru.advancerailway.file.data.GroupData
 import dev.nikomaru.advancerailway.file.data.RailwayData

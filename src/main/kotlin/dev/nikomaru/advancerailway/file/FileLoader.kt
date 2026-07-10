@@ -9,7 +9,6 @@
 
 package dev.nikomaru.advancerailway.file
 
-import dev.nikomaru.advancerailway.AdvanceRailway
 import dev.nikomaru.advancerailway.file.loader.ConfigDataLoader
 import dev.nikomaru.advancerailway.file.loader.RailwayDataLoader
 import dev.nikomaru.advancerailway.file.loader.StationDataLoader
@@ -21,7 +20,6 @@ import xyz.jpenilla.squaremap.api.SimpleLayerProvider
 
 object FileLoader: KoinComponent {
     private val provider: SimpleLayerProvider by inject()
-    private val plugin: AdvanceRailway by inject()
 
     /**
      * マーカーの全消去→再構築を直列化するためのロック。
@@ -31,7 +29,7 @@ object FileLoader: KoinComponent {
     private val mapLoadMutex = Mutex()
 
     suspend fun load() = mapLoadMutex.withLock {
-        val importFolder = plugin.dataFolder.resolve("import")
+        val importFolder = DataPaths.import
         if (!importFolder.exists()) {
             importFolder.mkdirs()
         }

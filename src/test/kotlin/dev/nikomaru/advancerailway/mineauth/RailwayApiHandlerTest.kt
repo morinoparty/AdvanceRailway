@@ -12,6 +12,7 @@ package dev.nikomaru.advancerailway.mineauth
 import dev.nikomaru.advancerailway.AdvanceRailway
 import dev.nikomaru.advancerailway.Line3D
 import dev.nikomaru.advancerailway.Point3D
+import dev.nikomaru.advancerailway.error.DataSearchError
 import dev.nikomaru.advancerailway.file.data.GroupData
 import dev.nikomaru.advancerailway.file.data.RailwayData
 import dev.nikomaru.advancerailway.file.data.StationData
@@ -19,10 +20,14 @@ import dev.nikomaru.advancerailway.file.type.LineType
 import dev.nikomaru.advancerailway.file.value.GroupId
 import dev.nikomaru.advancerailway.file.value.RailwayId
 import dev.nikomaru.advancerailway.file.value.StationId
+import dev.nikomaru.advancerailway.utils.GroupUtils
+import dev.nikomaru.advancerailway.utils.RailwayUtils
+import dev.nikomaru.advancerailway.utils.StationUtils
 import dev.nikomaru.advancerailway.utils.Utils.json
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.runBlocking
+import org.bukkit.Location
 import org.bukkit.World
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -70,6 +75,8 @@ class RailwayApiHandlerTest {
 
         server = MockBukkit.mock()
         world = server.addSimpleWorld("world")
+        // 駅の無いワールド（StationUtils.nearStation の NOT_FOUND ケース用）。
+        server.addSimpleWorld("world_the_end")
         // 別ワールド（経路探索のクロスワールド NoPath ケース用）。
         server.addSimpleWorld("world_nether")
 
@@ -358,6 +365,65 @@ class RailwayApiHandlerTest {
         }
         assertEquals(HttpStatus.NOT_FOUND, error.status)
         assertEquals("no_station", error.code)
+    }
+
+    // --- StationUtils.nearStation（RailClickEvent が使う最寄り駅判定）---------------------------------
+
+    @Test
+    @DisplayName("nearStation returns the closest station in the clicked location's world")
+    fun nearStationReturnsClosest() = runBlocking {
+        // (2,-3) は st01 (1,64,-3) に最も近い（y は無視）。
+        val result = StationUtils.nearStation(Location(world, 2.0, 64.0, -3.0))
+        assertEquals("st01", result.getOrNull()?.value)
+    }
+
+    @Test
+    @DisplayName("nearStation never matches a station in another dimension")
+    fun nearStationExcludesOtherWorld() = runBlocking {
+        // 別ワールド nt01 と同座標 (0,0) をオーバーワールドでクリックしても nt01 は候補外。
+        // 同一ワールドの最寄り st01 が返る。
+        val result = StationUtils.nearStation(Location(world, 0.0, 64.0, 0.0))
+        assertEquals("st01", result.getOrNull()?.value)
+    }
+
+    @Test
+    @DisplayName("nearStation returns NOT_FOUND when the clicked world has no stations")
+    fun nearStationNoStationInWorld() = runBlocking {
+        val theEnd = server.getWorld("world_the_end")!!
+        val result = StationUtils.nearStation(Location(theEnd, 0.0, 64.0, 0.0))
+        assertNull(result.getOrNull())
+    }
+
+    // --- *Utils.get*Data の直接カバレッジ（NOT_FOUND / 破損ファイル分離）--------------------------------
+
+    @Test
+    @DisplayName("getStationData/getGroupData/getRailwayData return the stored entity")
+    fun getDataHappyPath() = runBlocking {
+        assertEquals("Central", StationUtils.getStationData(StationId("st01")).getOrNull()?.name)
+        assertEquals("Yamanote", GroupUtils.getGroupData(GroupId("g1")).getOrNull()?.name)
+        assertEquals("st01", RailwayUtils.getRailwayData(RailwayId("rw01")).getOrNull()?.fromStation?.value)
+    }
+
+    @Test
+    @DisplayName("get*Data returns NOT_FOUND for a missing id")
+    fun getDataNotFound() = runBlocking {
+        assertEquals(DataSearchError.NOT_FOUND, StationUtils.getStationData(StationId("nope")).leftOrNull())
+        assertEquals(DataSearchError.NOT_FOUND, GroupUtils.getGroupData(GroupId("nope")).leftOrNull())
+        assertEquals(DataSearchError.NOT_FOUND, RailwayUtils.getRailwayData(RailwayId("nope")).leftOrNull())
+    }
+
+    @Test
+    @DisplayName("getStationData maps a corrupt on-disk file to DESERIALIZATION_FAILED (crash isolation)")
+    fun getDataCorruptFile() = runBlocking {
+        // 破損ファイルは他テストへ漏らさないよう、このテスト内だけで作成・削除する。
+        val broken = dataFolder.resolve("data").resolve("stations").resolve("brokenst.json")
+        broken.writeText("{ this is not valid json")
+        try {
+            val result = StationUtils.getStationData(StationId("brokenst"))
+            assertEquals(DataSearchError.DESERIALIZATION_FAILED, result.leftOrNull())
+        } finally {
+            broken.delete()
+        }
     }
 
     @Test

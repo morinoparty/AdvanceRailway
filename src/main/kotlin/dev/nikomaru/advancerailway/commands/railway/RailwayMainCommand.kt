@@ -12,7 +12,7 @@ package dev.nikomaru.advancerailway.commands.railway
 
 import dev.nikomaru.advancerailway.AdvanceRailway
 import dev.nikomaru.advancerailway.Point3D
-import dev.nikomaru.advancerailway.commands.DataPaths
+import dev.nikomaru.advancerailway.file.DataPaths
 import dev.nikomaru.advancerailway.file.FileLoader
 import dev.nikomaru.advancerailway.file.data.RailwayData
 import dev.nikomaru.advancerailway.file.type.LineType

@@ -12,7 +12,9 @@ package dev.nikomaru.advancerailway.utils
 import arrow.core.Either
 import dev.nikomaru.advancerailway.AdvanceRailway
 import dev.nikomaru.advancerailway.error.DataSearchError
+import dev.nikomaru.advancerailway.file.DataPaths
 import dev.nikomaru.advancerailway.file.data.StationData
+import dev.nikomaru.advancerailway.file.value.IdValidation
 import dev.nikomaru.advancerailway.file.value.StationId
 import dev.nikomaru.advancerailway.utils.Utils.json
 import dev.nikomaru.advancerailway.utils.Utils.toPoint3D
@@ -26,25 +28,29 @@ object StationUtils: KoinComponent {
     val plugin: AdvanceRailway by inject()
 
     suspend fun nearStation(location: Location): Either<DataSearchError, StationId> = withContext(Dispatchers.IO) {
-        val folder = plugin.dataFolder.resolve("data").resolve("stations")
+        val folder = DataPaths.stations
         if (!folder.exists()) {
             folder.mkdirs()
             return@withContext Either.Left(DataSearchError.NOT_FOUND)
         }
+        // クリック位置のワールドが不明なら最寄り駅を判定できない。
+        val worldName = location.world?.name ?: return@withContext Either.Left(DataSearchError.NOT_FOUND)
         val files = folder.listFiles() ?: return@withContext Either.Left(DataSearchError.NOT_FOUND)
-        val station =
-            files.map { StationId(it.nameWithoutExtension) }.map { getStationData(it) }.filter { it.isRight() }
-                .map { it.getOrNull()!! }
-        val world = location.world //TODO 距離の計算を変更する ネザーの場合は8倍にする (nether distance scaling not yet implemented)
+        val stations = files
+            .filter { it.isFile && it.extension == "json" && IdValidation.isValid(it.nameWithoutExtension) }
+            .mapNotNull { getStationData(StationId(it.nameWithoutExtension)).getOrNull() }
+            // 最寄り駅は同一ワールド内でのみ判定する（別ディメンションの駅を誤って選ばないため）。
+            // 同一ワールド内では座標が 1:1 のため、ネザー等のスケーリング補正は不要。
+            .filter { it.world.name == worldName }
 
-        val nearest = station.minByOrNull { it.point.distanceTo2D(location.toPoint3D()) }
+        val nearest = stations.minByOrNull { it.point.distanceTo2D(location.toPoint3D()) }
             ?: return@withContext Either.Left(DataSearchError.NOT_FOUND)
         return@withContext Either.Right(nearest.stationId)
     }
 
     suspend fun getStationData(stationId: StationId): Either<DataSearchError, StationData> =
         withContext(Dispatchers.IO) {
-            val folder = plugin.dataFolder.resolve("data").resolve("stations")
+            val folder = DataPaths.stations
             if (!folder.exists()) {
                 folder.mkdirs()
                 return@withContext Either.Left(DataSearchError.NOT_FOUND)

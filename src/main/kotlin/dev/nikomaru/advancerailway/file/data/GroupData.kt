@@ -9,16 +9,13 @@
 
 package dev.nikomaru.advancerailway.file.data
 
-import dev.nikomaru.advancerailway.AdvanceRailway
-import dev.nikomaru.advancerailway.AdvanceRailway.Companion.plugin
+import dev.nikomaru.advancerailway.file.DataPaths
 import dev.nikomaru.advancerailway.file.utils.ColorSerializer
 import dev.nikomaru.advancerailway.file.utils.writeAtomically
 import dev.nikomaru.advancerailway.file.value.GroupId
 import dev.nikomaru.advancerailway.utils.Utils.json
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
-import org.koin.core.component.KoinComponent
-import org.koin.core.component.inject
 import java.awt.Color
 
 @Serializable
@@ -26,16 +23,15 @@ data class GroupData(
     val groupId: GroupId,
     val name: String,
     val railwayColor: @Serializable(with = ColorSerializer::class) Color,
-): KoinComponent {
-    val plugin: AdvanceRailway by inject()
+) {
     fun save() {
-        val file = plugin.dataFolder.resolve("data").resolve("groups").resolve("${groupId.value}.json")
+        val file = DataPaths.groups.resolve("${groupId.value}.json")
         writeAtomically(file, json.encodeToString(this))
     }
 
     companion object {
         fun load(groupId: GroupId): GroupData {
-            val file = plugin.dataFolder.resolve("data").resolve("groups").resolve("${groupId.value}.json")
+            val file = DataPaths.groups.resolve("${groupId.value}.json")
             return json.decodeFromString(file.readText())
         }
     }

@@ -10,6 +10,7 @@
 package dev.nikomaru.advancerailway.file.loader
 
 import dev.nikomaru.advancerailway.AdvanceRailway
+import dev.nikomaru.advancerailway.file.DataPaths
 import dev.nikomaru.advancerailway.file.data.ConfigData
 import dev.nikomaru.advancerailway.file.data.RailwayData
 import dev.nikomaru.advancerailway.file.data.StationData
@@ -28,8 +29,8 @@ class StationDataLoader: KoinComponent {
     private val plugin: AdvanceRailway by inject()
     private val provider: SimpleLayerProvider by inject()
     private val config: ConfigData by inject()
-    private val stationDataFolder = plugin.dataFolder.resolve("data").resolve("stations")
-    private val railwayDataFolder = plugin.dataFolder.resolve("data").resolve("railways")
+    private val stationDataFolder = DataPaths.stations
+    private val railwayDataFolder = DataPaths.railways
     private val joinedCount = hashMapOf<StationId, Int>()
 
     fun load() {

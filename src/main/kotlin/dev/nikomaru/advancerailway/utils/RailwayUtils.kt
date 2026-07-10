@@ -18,6 +18,7 @@ import dev.nikomaru.advancerailway.Point3D
 import dev.nikomaru.advancerailway.data.InspectData
 import dev.nikomaru.advancerailway.error.DataSearchError
 import dev.nikomaru.advancerailway.error.RailTraceError
+import dev.nikomaru.advancerailway.file.DataPaths
 import dev.nikomaru.advancerailway.file.data.ConfigData
 import dev.nikomaru.advancerailway.file.data.RailwayData
 import dev.nikomaru.advancerailway.file.value.RailwayId
@@ -175,7 +176,7 @@ object RailwayUtils: KoinComponent {
 
     suspend fun getRailwayData(railwayId: RailwayId): Either<DataSearchError, RailwayData> =
         withContext(Dispatchers.IO) {
-            val folder = StationUtils.plugin.dataFolder.resolve("data").resolve("railways")
+            val folder = DataPaths.railways
             if (!folder.exists()) {
                 folder.mkdirs()
                 return@withContext Either.Left(DataSearchError.NOT_FOUND)
