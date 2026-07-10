@@ -112,9 +112,61 @@ jobs:
           path: ./gradle-artifacts
           retention-days: 1
 
-  # S3 アップロードジョブ（JAR・レポート）
+  # Docs ビルドジョブ（gradle と並列実行、Fumadocs 静的エクスポート）
+  build-docs:
+    needs: setup
+    runs-on: ubuntu-latest
+    env:
+      COMMIT_SHORT_SHA: ${{ needs.setup.outputs.commit_sha }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+
+      - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
+        name: Install pnpm
+        with:
+          version: 10
+          run_install: false
+
+      # pnpm キャッシュの設定
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
+
+      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        name: Setup pnpm cache
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install docs dependencies
+        working-directory: docs
+        run: pnpm install
+
+      - name: Build Fumadocs
+        working-directory: docs
+        env:
+          # プレビュー配信パス（S3 のサブパス）に合わせて basePath を設定する。
+          BASE_PATH: /${{ env.PROJECT_PATH }}/${{ env.COMMIT_SHORT_SHA }}/docs
+        run: pnpm run build
+
+      - name: Upload docs artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: docs-artifacts
+          path: ./docs/out
+          retention-days: 1
+
+  # S3 アップロードジョブ（JAR・レポート・Docs）
   upload-s3:
-    needs: [setup, build-gradle]
+    needs: [setup, build-gradle, build-docs]
     runs-on: ubuntu-latest
     env:
       COMMIT_SHORT_SHA: ${{ needs.setup.outputs.commit_sha }}
@@ -130,6 +182,8 @@ jobs:
           cp -r ./artifacts/gradle-artifacts/jars ./upload/ || echo "No JAR artifacts"
           cp -r ./artifacts/gradle-artifacts/junit ./upload/ || echo "No JUnit reports"
           cp -r ./artifacts/gradle-artifacts/detekt ./upload/ || echo "No Detekt reports"
+          mkdir -p ./upload/docs
+          mv ./artifacts/docs-artifacts/* ./upload/docs/ || echo "No docs artifacts"
 
       - name: Upload to S3 (parallel)
         run: |
@@ -139,10 +193,11 @@ jobs:
           S3_BASE="s3://${{ env.S3_UPLOAD_BUCKET }}/${{ env.PROJECT_PATH }}/${{ env.COMMIT_SHORT_SHA }}"
           S3_OPTS="--endpoint-url ${S3_ENDPOINT} --only-show-errors"
 
-          # JAR・レポートを並列でアップロード
+          # JAR・レポート・Docs を並列でアップロード
           aws s3 cp ./upload/jars $S3_BASE/jars $S3_OPTS --recursive &
           aws s3 cp ./upload/junit $S3_BASE/junit $S3_OPTS --recursive &
           aws s3 cp ./upload/detekt $S3_BASE/detekt $S3_OPTS --recursive &
+          aws s3 cp ./upload/docs $S3_BASE/docs $S3_OPTS --recursive &
 
           # 全ての並列アップロードを待機
           wait
@@ -169,6 +224,7 @@ jobs:
           JAR_BASE_URL: "${{ env.PREVIEW_BASE_URL }}/${{ env.COMMIT_SHORT_SHA }}/jars"
           JUNIT_REPORT_URL: "${{ env.PREVIEW_BASE_URL }}/${{ env.COMMIT_SHORT_SHA }}/junit/index.html"
           DETEKT_REPORT_URL: "${{ env.PREVIEW_BASE_URL }}/${{ env.COMMIT_SHORT_SHA }}/detekt/detekt.html"
+          DOCS_PREVIEW_URL: "${{ env.PREVIEW_BASE_URL }}/${{ env.COMMIT_SHORT_SHA }}/docs/index.html"
           ATTESTATION_URL: "${{ needs.build-gradle.outputs.attestation_url }}"
           LIMIT_TIME: ${{ env.LIMIT_TIME }}
         run: |
@@ -183,10 +239,11 @@ jobs:
 
           > 📜 **Attestation** (SLSA provenance): [Verify on GitHub]($ATTESTATION_URL) or run \`gh attestation verify <jar-file> --owner Nlkomaru\`
 
-          ### 📖 Reports
+          ### 📖 Documentation & Reports
           Available for 7 days (until $LIMIT_TIME)
           | Resource | Link |
           |----------|------|
+          | 📖 Documentation | [Preview]($DOCS_PREVIEW_URL) |
           | 🧪 JUnit Report | [Report]($JUNIT_REPORT_URL) |
           | 🔍 Detekt Report | [Report]($DETEKT_REPORT_URL) |
 

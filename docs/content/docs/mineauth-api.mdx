@@ -1,0 +1,140 @@
+---
+title: MineAuth HTTP API
+description: 駅・路線・グループ・経路を JSON で取得する読み取り専用 API
+---
+
+# MineAuth HTTP API
+
+MineAuth プラグインを AdvanceRailway と同時に導入している場合（MineAuth は任意の依存で、無くても AdvanceRailway は動作します）、
+AdvanceRailway は以下のベースパス配下に、認証付き・読み取り専用の HTTP エンドポイントを登録します。
+
+```
+/api/v1/plugins/advancerailway/
+```
+
+MineAuth が未導入の場合、これらのエンドポイントは登録されません。
+
+## エンドポイント
+
+| メソッド | パス | 説明 |
+| --- | --- | --- |
+| GET | `/stations` | 全駅を一覧取得 |
+| GET | `/stations/{id}` | 駅を 1 件取得 |
+| GET | `/railways` | 全路線を一覧取得 |
+| GET | `/railways/{id}` | 路線を 1 件取得 |
+| GET | `/groups` | 全グループを一覧取得 |
+| GET | `/groups/{id}` | グループを 1 件取得 |
+| GET | `/route?from={id}&to={id}` | 2 駅間の最短経路を取得 |
+
+パスはベースパスからの相対です（例: 駅一覧の完全パスは `/api/v1/plugins/advancerailway/stations`）。
+存在しない ID を指定した取得は HTTP `404 Not Found` を返します。
+
+## 認証
+
+全エンドポイントは `@Authenticated(callers = [CallerType.SERVICE])` を宣言しており、**サービスアカウントトークン**
+（管理者が MineAuth 経由で発行する信頼された資格情報）でのみ呼び出せます。プレイヤーのユーザートークンは拒否されます。
+座標などの情報を含むため、サービストークンは信頼できるバックエンド連携にのみ発行してください。
+
+サービストークンは信頼された資格情報として扱われるため、MineAuth は Bukkit のパーミッションノードを評価しません。
+アクセス可否は有効なサービストークンを持つかどうかのみで決まります。
+
+設定で連携を無効化することもできます（プラグイン設定の `mineAuthEnabled: false`）。
+
+## ページング
+
+一覧エンドポイント（`/stations` / `/railways` / `/groups`）は `limit` / `offset` クエリを受け付けます。
+
+- `limit` — 返す件数。既定 `100`、上限 `500`。
+- `offset` — スキップする件数。既定 `0`。
+
+例: `GET /api/v1/plugins/advancerailway/stations?limit=50&offset=100`
+
+## レスポンス形式
+
+すべて JSON です。
+
+### 駅（Station）
+
+```json
+{
+  "id": "central",
+  "name": "中央駅",
+  "numbering": "M01",
+  "world": "world",
+  "point": { "x": 0.0, "y": 64.0, "z": 0.0 },
+  "overrideSize": null,
+  "color": "#FF0000"
+}
+```
+
+- `numbering` と `overrideSize` は `null` になり得ます。
+- `color` は `#RRGGBB` 形式です。
+
+### 路線（Railway）
+
+```json
+{
+  "id": "central-to-north",
+  "group": "main-line",
+  "world": "world",
+  "lineType": "UP_LINE",
+  "fromStation": "central",
+  "toStation": "north",
+  "timeRequired": 30,
+  "startPoint": { "x": 0.0, "y": 64.0, "z": 0.0 },
+  "endPoint": { "x": 100.0, "y": 64.0, "z": 0.0 },
+  "directionPoint": { "x": 50.0, "y": 64.0, "z": 0.0 }
+}
+```
+
+- `group` は所属グループが無ければ `null`。
+- `timeRequired` は所要時間（秒）。
+
+### グループ（Group）
+
+```json
+{
+  "id": "main-line",
+  "name": "本線",
+  "color": "#00A0FF"
+}
+```
+
+### 経路（Route）
+
+`GET /route?from={id}&to={id}` は 2 駅間の最短（所要時間最小）経路を求めます。`from` / `to` は必須で、
+欠けると `400 Bad Request` を返します。
+
+ネットワークは 2 種類の辺を持つ重み付きグラフとしてモデル化し、**A\*** で最短経路を求めます。
+
+- **レール辺** — 各路線を無向辺とし、重みは `timeRequired`（秒）。方向別（`UP_LINE` / `DOWN_LINE`）の区別は未対応。
+- **徒歩辺** — 同一ワールド内の任意の 2 駅を、直線水平距離 ÷ マインクラフトの歩行速度（`4.317` ブロック/秒）で結びます。
+  これにより、レールでつながっていない駅にも到達できます。異なるワールド間はレールのみで到達可能です。
+
+```json
+{
+  "from": "central",
+  "fromName": "中央駅",
+  "to": "north",
+  "toName": "北駅",
+  "totalTime": 150,
+  "stations": ["central", "west", "north"],
+  "legs": [
+    { "mode": "RAIL", "railway": "central-to-west", "from": "central", "fromName": "中央駅", "to": "west", "toName": "西駅", "timeRequired": 60, "group": "main-line", "line": "本線" },
+    { "mode": "WALK", "railway": null, "from": "west", "fromName": "西駅", "to": "north", "toName": "北駅", "timeRequired": 90, "group": null, "line": null }
+  ]
+}
+```
+
+- `mode` は `"RAIL"`（乗車）または `"WALK"`（徒歩）。
+- `fromName` / `toName` は駅の**表示名**、`line` は路線（グループ）の**表示名**です（名前が無ければ ID にフォールバック）。表示には ID ではなくこれらを使ってください。
+- `railway` / `group` / `line` は徒歩区間では `null` です。
+- `totalTime` は全区間の `timeRequired` の合計（秒）。
+
+エラーは機械可読な `code` を持ちます。
+
+| ステータス | `code` | 条件 |
+| --- | --- | --- |
+| `404 Not Found` | `station_not_found` | `from` / `to` が存在しない駅 |
+| `400 Bad Request` | `same_station` | `from` と `to` が同じ駅 |
+| `404 Not Found` | `no_route` | 2 駅が経路でつながっていない |
