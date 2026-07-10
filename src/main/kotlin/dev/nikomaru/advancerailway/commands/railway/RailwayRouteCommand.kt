@@ -10,7 +10,7 @@
 package dev.nikomaru.advancerailway.commands.railway
 
 import arrow.core.Either
-import dev.nikomaru.advancerailway.AdvanceRailway
+import dev.nikomaru.advancerailway.file.DataPaths
 import dev.nikomaru.advancerailway.file.data.StationData
 import dev.nikomaru.advancerailway.file.value.GroupId
 import dev.nikomaru.advancerailway.file.value.IdValidation
@@ -32,8 +32,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
-import org.koin.core.component.KoinComponent
-import org.koin.core.component.inject
 import revxrsal.commands.annotation.Command
 import revxrsal.commands.annotation.Optional
 import revxrsal.commands.annotation.Subcommand
@@ -50,8 +48,7 @@ import revxrsal.commands.bukkit.annotation.CommandPermission
  */
 @Command("ar railway", "advancerailway railway")
 @CommandPermission("advancerailway.command.railway.read")
-class RailwayRouteCommand : KoinComponent {
-    val plugin: AdvanceRailway by inject()
+class RailwayRouteCommand {
 
     /**
      * 経路検索。
@@ -169,7 +166,7 @@ class RailwayRouteCommand : KoinComponent {
 
     /** data/{type}/ 配下の JSON ファイル名を、allowlist を満たす ID として列挙する。 */
     private fun listIds(type: String): List<String> =
-        plugin.dataFolder.resolve("data").resolve(type).listFiles()
+        DataPaths.of(type).listFiles()
             ?.filter { it.isFile && it.extension == "json" }
             ?.map { it.nameWithoutExtension }
             ?.filter { IdValidation.isValid(it) }

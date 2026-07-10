@@ -9,9 +9,8 @@
 
 package dev.nikomaru.advancerailway.file.data
 
-import dev.nikomaru.advancerailway.AdvanceRailway
-import dev.nikomaru.advancerailway.AdvanceRailway.Companion.plugin
 import dev.nikomaru.advancerailway.Point3D
+import dev.nikomaru.advancerailway.file.DataPaths
 import dev.nikomaru.advancerailway.file.FileLoader
 import dev.nikomaru.advancerailway.file.utils.ColorSerializer
 import dev.nikomaru.advancerailway.file.utils.WorldSerializer
@@ -21,8 +20,6 @@ import dev.nikomaru.advancerailway.utils.Utils.json
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import org.bukkit.World
-import org.koin.core.component.KoinComponent
-import org.koin.core.component.inject
 import java.awt.Color
 import kotlin.random.Random
 
@@ -35,11 +32,10 @@ data class StationData(
     val point: Point3D,
     val overrideSize: Double?,
     val color: @Serializable(with = ColorSerializer::class) Color = defaultColor(stationId)
-): KoinComponent {
-    val plugin: AdvanceRailway by inject()
+) {
 
     suspend fun save() {
-        val file = plugin.dataFolder.resolve("data").resolve("stations").resolve("${stationId.value}.json")
+        val file = DataPaths.stations.resolve("${stationId.value}.json")
         writeAtomically(file, json.encodeToString(this))
         FileLoader.mapDataLoad()
     }
@@ -57,7 +53,7 @@ data class StationData(
         }
 
         fun load(stationId: StationId): StationData {
-            val file = plugin.dataFolder.resolve("data").resolve("stations").resolve("${stationId.value}.json")
+            val file = DataPaths.stations.resolve("${stationId.value}.json")
             return json.decodeFromString(file.readText())
         }
     }

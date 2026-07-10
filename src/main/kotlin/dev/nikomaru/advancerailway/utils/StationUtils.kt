@@ -12,6 +12,7 @@ package dev.nikomaru.advancerailway.utils
 import arrow.core.Either
 import dev.nikomaru.advancerailway.AdvanceRailway
 import dev.nikomaru.advancerailway.error.DataSearchError
+import dev.nikomaru.advancerailway.file.DataPaths
 import dev.nikomaru.advancerailway.file.data.StationData
 import dev.nikomaru.advancerailway.file.value.StationId
 import dev.nikomaru.advancerailway.utils.Utils.json
@@ -26,7 +27,7 @@ object StationUtils: KoinComponent {
     val plugin: AdvanceRailway by inject()
 
     suspend fun nearStation(location: Location): Either<DataSearchError, StationId> = withContext(Dispatchers.IO) {
-        val folder = plugin.dataFolder.resolve("data").resolve("stations")
+        val folder = DataPaths.stations
         if (!folder.exists()) {
             folder.mkdirs()
             return@withContext Either.Left(DataSearchError.NOT_FOUND)
@@ -44,7 +45,7 @@ object StationUtils: KoinComponent {
 
     suspend fun getStationData(stationId: StationId): Either<DataSearchError, StationData> =
         withContext(Dispatchers.IO) {
-            val folder = plugin.dataFolder.resolve("data").resolve("stations")
+            val folder = DataPaths.stations
             if (!folder.exists()) {
                 folder.mkdirs()
                 return@withContext Either.Left(DataSearchError.NOT_FOUND)

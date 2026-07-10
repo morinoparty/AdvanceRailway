@@ -10,7 +10,7 @@
 package dev.nikomaru.advancerailway.commands.station
 
 import dev.nikomaru.advancerailway.AdvanceRailway
-import dev.nikomaru.advancerailway.commands.DataPaths
+import dev.nikomaru.advancerailway.file.DataPaths
 import dev.nikomaru.advancerailway.commands.getOrSend
 import dev.nikomaru.advancerailway.file.value.StationId
 import dev.nikomaru.advancerailway.utils.StationUtils

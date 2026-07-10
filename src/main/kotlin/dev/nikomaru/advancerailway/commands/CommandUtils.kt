@@ -10,26 +10,7 @@
 package dev.nikomaru.advancerailway.commands
 
 import arrow.core.Either
-import dev.nikomaru.advancerailway.AdvanceRailway
 import org.bukkit.command.CommandSender
-import java.io.File
-
-/**
- * `data/` 配下の各サブフォルダへのパスを一元化するヘルパ。
- *
- * コマンド実装のあちこちに散らばっていた
- * `dataFolder.resolve("data").resolve("groups"/"railways"/"stations")`
- * という重複したリテラルを 1 箇所に集約する。
- *
- * アクセサは computed（`get()`）にしており、クラスロード時に
- * [AdvanceRailway.plugin]（`lateinit`）へ触れないようにしている。
- */
-object DataPaths {
-    private val dataFolder: File get() = AdvanceRailway.plugin.dataFolder.resolve("data")
-    val groups: File get() = dataFolder.resolve("groups")
-    val railways: File get() = dataFolder.resolve("railways")
-    val stations: File get() = dataFolder.resolve("stations")
-}
 
 /**
  * [Either] の [Either.Right] を取り出す。[Either.Left] の場合は [msg] で生成した

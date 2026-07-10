@@ -10,6 +10,7 @@
 package dev.nikomaru.advancerailway.commands
 
 import dev.nikomaru.advancerailway.AdvanceRailway
+import dev.nikomaru.advancerailway.file.DataPaths
 import dev.nikomaru.advancerailway.file.data.*
 import dev.nikomaru.advancerailway.utils.Utils.csv
 import dev.nikomaru.advancerailway.utils.Utils.json
@@ -65,7 +66,7 @@ class FileCommand: KoinComponent {
 
     @Subcommand("import")
     fun import(sender: CommandSender, dataType: DataType, fileName: String) {
-        val importFile = plugin.dataFolder.resolve("import").resolve(fileName)
+        val importFile = DataPaths.import.resolve(fileName)
         if (!importFile.exists()) {
             sender.sendRichMessage("Error: Import file not found: $fileName")
             return
