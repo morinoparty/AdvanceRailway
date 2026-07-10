@@ -1,0 +1,13 @@
+{
+    "id": "mthm_savv",
+    "group": "meidai",
+    "world": "world",
+    "lineType": "UP_DOWN_LINE",
+    "line": "(-3314.0,79.0,-8134.0):(-3313.0,78.0,-8134.0):(-1896.0,78.0,-8134.0)",
+    "fromStation": "mthm",
+    "toStation": "savv",
+    "timeRequired": 177,
+    "startPoint": "-3314.0,79.0,-8134.0",
+    "endPoint": "-1896.0,78.0,-8134.0",
+    "directionPoint": "-3313.0,78.0,-8134.0"
+}

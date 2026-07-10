@@ -83,23 +83,33 @@ data class GroupsResponse(val groups: List<GroupDto>)
 data class RouteLegDto(
     /** 移動手段。`"RAIL"`（路線）または `"WALK"`（徒歩）。 */
     val mode: String,
-    /** レール区間で乗る路線。徒歩区間では `null`。 */
+    /** レール区間で乗る路線 ID。徒歩区間では `null`。 */
     val railway: String?,
-    /** 区間の出発駅。起点が現在地の場合は `null`。 */
+    /** 区間の出発駅 ID。起点が現在地の場合は `null`（現状 API では常に駅）。 */
     val from: String?,
-    /** 区間の到着駅。 */
+    /** 区間の出発駅の表示名（ID フォールバックあり）。起点が現在地の場合は `null`。 */
+    val fromName: String?,
+    /** 区間の到着駅 ID。 */
     val to: String,
+    /** 区間の到着駅の表示名（ID フォールバックあり）。 */
+    val toName: String,
     /** この区間の所要時間（秒）。 */
     val timeRequired: Long,
-    /** 路線が属するグループ。徒歩区間や無所属の場合は `null`。 */
+    /** 路線が属するグループ ID。徒歩区間や無所属の場合は `null`。 */
     val group: String?,
+    /** 路線（グループ）の表示名。徒歩区間や無所属の場合は `null`。 */
+    val line: String?,
 )
 
 /** 駅間経路レスポンス。 */
 @Serializable
 data class RouteResponse(
     val from: String,
+    /** 出発駅の表示名（ID フォールバックあり）。 */
+    val fromName: String,
     val to: String,
+    /** 到着駅の表示名（ID フォールバックあり）。 */
+    val toName: String,
     /** 合計所要時間（秒）。 */
     val totalTime: Long,
     /** 出発駅から到着駅まで、通過順に並んだ駅 ID 列。 */

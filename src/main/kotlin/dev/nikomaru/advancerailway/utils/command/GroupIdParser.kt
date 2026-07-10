@@ -12,7 +12,7 @@ package dev.nikomaru.advancerailway.utils.command
 import dev.nikomaru.advancerailway.file.value.GroupId
 import revxrsal.commands.bukkit.BukkitCommandHandler
 
-object GroupIdParser: IdParser<GroupId>("groups", GroupId::class.java, ::GroupId) {
+object GroupIdParser: IdParser<GroupId>("groups", GroupId::class.java, ::GroupId, nameField = "name") {
     fun BukkitCommandHandler.registerGroupIdParser() {
         registerIdParser()
     }

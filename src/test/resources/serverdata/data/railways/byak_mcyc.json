@@ -1,0 +1,13 @@
+{
+    "id": "byak_mcyc",
+    "group": "yukuripa",
+    "world": "world",
+    "lineType": "UP_LINE",
+    "line": "(593.0,70.0,5049.0):(593.0,70.0,2787.0)",
+    "fromStation": "byak",
+    "toStation": "mcyc",
+    "timeRequired": 282,
+    "startPoint": "593.0,70.0,5049.0",
+    "endPoint": "593.0,70.0,2787.0",
+    "directionPoint": "593.0,70.0,5048.0"
+}

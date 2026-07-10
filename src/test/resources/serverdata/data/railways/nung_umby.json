@@ -1,0 +1,13 @@
+{
+    "id": "nung_umby",
+    "group": "meidai",
+    "world": "world",
+    "lineType": "UP_LINE",
+    "line": "(-955.0,78.0,-544.0):(-955.0,78.0,-512.0):(-957.0,78.0,-510.0):(-957.0,78.0,-182.0):(-955.0,78.0,-180.0):(-955.0,78.0,-161.0)",
+    "fromStation": "nung",
+    "toStation": "umby",
+    "timeRequired": 48,
+    "startPoint": "-955.0,78.0,-544.0",
+    "endPoint": "-955.0,78.0,-161.0",
+    "directionPoint": "-955.0,78.0,-543.0"
+}

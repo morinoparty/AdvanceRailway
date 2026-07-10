@@ -1,0 +1,13 @@
+{
+    "id": "tje_rnkc",
+    "group": "rinkai",
+    "world": "world",
+    "lineType": "UP_LINE",
+    "line": "(1055.0,71.0,1917.0):(1055.0,71.0,1506.0)",
+    "fromStation": "tje",
+    "toStation": "rnkc",
+    "timeRequired": 51,
+    "startPoint": "1055.0,71.0,1917.0",
+    "endPoint": "1055.0,71.0,1506.0",
+    "directionPoint": "1055.0,71.0,1916.0"
+}

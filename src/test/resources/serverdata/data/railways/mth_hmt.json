@@ -1,0 +1,13 @@
+{
+    "id": "mth_hmt",
+    "group": "morimotoCent",
+    "world": "world",
+    "lineType": "UP_LINE",
+    "line": "(-274.0,67.0,-86.0):(-152.0,67.0,-86.0):(-148.0,65.0,-86.0):(-146.0,63.0,-86.0):(-134.0,63.0,-86.0)",
+    "fromStation": "mth",
+    "toStation": "hmt",
+    "timeRequired": 17,
+    "startPoint": "-274.0,67.0,-86.0",
+    "endPoint": "-134.0,63.0,-86.0",
+    "directionPoint": "-273.0,67.0,-86.0"
+}

@@ -1,0 +1,13 @@
+{
+    "id": "kzrf_ycgo",
+    "group": "yukuripa",
+    "world": "world",
+    "lineType": "UP_LINE",
+    "line": "(593.0,77.0,9396.0):(593.0,77.0,9254.0):(593.0,76.0,9252.0):(593.0,70.0,9246.0):(593.0,70.0,9204.0):(595.0,70.0,9202.0):(595.0,70.0,9198.0)",
+    "fromStation": "kzrf",
+    "toStation": "ycgo",
+    "timeRequired": 25,
+    "startPoint": "593.0,77.0,9396.0",
+    "endPoint": "595.0,70.0,9198.0",
+    "directionPoint": "593.0,77.0,9395.0"
+}

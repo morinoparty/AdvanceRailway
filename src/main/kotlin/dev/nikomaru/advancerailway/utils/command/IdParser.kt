@@ -12,6 +12,10 @@ package dev.nikomaru.advancerailway.utils.command
 import dev.nikomaru.advancerailway.AdvanceRailway
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.bukkit.command.CommandSender
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
@@ -20,20 +24,73 @@ import revxrsal.commands.bukkit.sender
 import revxrsal.commands.command.CommandActor
 import revxrsal.commands.command.ExecutableCommand
 import revxrsal.commands.process.ValueResolver
+import java.io.File
+
+/** 1 件の実体（ファイル名から得た ID と、任意の表示名）。 */
+data class IdEntry(val id: String, val name: String?)
+
+/**
+ * `data/<type>/` フォルダ配下の JSON を、ID と表示名のインデックスとして扱う純粋ロジック。
+ * Koin / Bukkit に依存しないため単体テストできる。
+ */
+object IdIndex {
+    private val json = Json { ignoreUnknownKeys = true }
+
+    /** フォルダ内容＋更新時刻の署名（キャッシュ無効化判定用）。 */
+    fun signature(folder: File): String {
+        val files = folder.listFiles { f: File -> f.isFile && f.extension == "json" }?.sortedBy { it.name }
+            ?: return ""
+        return files.joinToString("|") { "${it.name}:${it.lastModified()}" }
+    }
+
+    /**
+     * フォルダ内の各 JSON を [IdEntry] として読み込む。
+     * ID はファイル名（拡張子なし）。表示名は [nameField] が指定されていればその JSON フィールドから読む
+     * （空文字・欠落・パース失敗は `null` 扱い）。
+     */
+    fun read(folder: File, nameField: String?): List<IdEntry> {
+        val files = folder.listFiles { f: File -> f.isFile && f.extension == "json" }?.sortedBy { it.name }
+            ?: return emptyList()
+        return files.map { file ->
+            val name = nameField?.let { field ->
+                runCatching { json.parseToJsonElement(file.readText()).jsonObject[field]?.jsonPrimitive?.contentOrNull }
+                    .getOrNull()
+            }
+            IdEntry(file.nameWithoutExtension, name?.takeIf { it.isNotBlank() })
+        }
+    }
+
+    /** 補完候補: 名前があれば名前、無ければ ID。 */
+    fun suggestions(entries: List<IdEntry>): Set<String> = entries.map { it.name ?: it.id }.toSet()
+
+    /** 入力を、まず表示名として、次に ID として解決する（名前が一致すればその ID、しなければ入力そのもの）。 */
+    fun resolveId(entries: List<IdEntry>, token: String): String =
+        entries.firstOrNull { it.name == token }?.id ?: token
+}
 
 /**
  * Shared implementation for id parsers (Group/Railway/Station) that are all backed by a
- * per-type subfolder under the plugin's data directory (e.g. files under `data/groups/`), whose
- * suggestions are simply the file names in that folder.
+ * per-type subfolder under the plugin's data directory (e.g. files under `data/groups/`).
+ *
+ * When [nameField] is provided, entries also expose a **human-readable display name**. Suggestions then
+ * offer the names (nobody can memorise ids like `fti`), and [resolve] accepts either the display name or
+ * the raw id. When [nameField] is null (e.g. railways, which have no name), suggestions and resolution
+ * fall back to ids only.
  */
-abstract class IdParser<T: Any>(
+abstract class IdParser<T : Any>(
     private val subfolder: String,
     private val idType: Class<T>,
     private val idFactory: (String) -> T,
-): ValueParser<T>(), KoinComponent {
+    /** JSON field holding the display name, or null if this entity type has no name. */
+    private val nameField: String? = null,
+) : ValueParser<T>(), KoinComponent {
     val plugin: AdvanceRailway by inject()
 
     private val folder get() = plugin.dataFolder.resolve("data").resolve(subfolder)
+
+    // 補完はキーストローク毎に呼ばれるため、フォルダ署名でキャッシュし変化が無ければ再パースしない。
+    @Volatile
+    private var cache: Pair<String, List<IdEntry>>? = null
 
     /** Ensures the backing data folder exists. Call once at startup, never from [suggestions]. */
     fun ensureDataFolder() {
@@ -42,12 +99,22 @@ abstract class IdParser<T: Any>(
         }
     }
 
-    override fun suggestions(args: List<String>, sender: CommandSender, command: ExecutableCommand): Set<String> =
-        runBlocking(Dispatchers.IO) {
-            folder.listFiles()?.map { it.nameWithoutExtension }?.toSet() ?: emptySet()
-        }
+    private fun entries(): List<IdEntry> {
+        val signature = IdIndex.signature(folder)
+        cache?.let { (cachedSig, cached) -> if (cachedSig == signature) return cached }
+        val fresh = IdIndex.read(folder, nameField)
+        cache = signature to fresh
+        return fresh
+    }
 
-    override fun resolve(context: ValueResolver.ValueResolverContext): T = idFactory(context.pop())
+    override fun suggestions(args: List<String>, sender: CommandSender, command: ExecutableCommand): Set<String> =
+        runBlocking(Dispatchers.IO) { IdIndex.suggestions(entries()) }
+
+    override fun resolve(context: ValueResolver.ValueResolverContext): T {
+        val token = context.pop()
+        val id = runBlocking(Dispatchers.IO) { IdIndex.resolveId(entries(), token) }
+        return idFactory(id)
+    }
 
     protected fun BukkitCommandHandler.registerIdParser() {
         // Note: do NOT call ensureDataFolder() here. This runs from setCommand(), which

@@ -1,0 +1,13 @@
+{
+    "id": "rnkc_nku",
+    "group": null,
+    "world": "world",
+    "lineType": "UP_LINE",
+    "line": "(1080.0,74.0,1507.0):(1268.0,74.0,1507.0):(1269.0,74.0,1508.0):(1269.0,74.0,1609.0)",
+    "fromStation": "rnkc",
+    "toStation": "nku",
+    "timeRequired": 36,
+    "startPoint": "1080.0,74.0,1507.0",
+    "endPoint": "1269.0,74.0,1609.0",
+    "directionPoint": "1081.0,74.0,1507.0"
+}
