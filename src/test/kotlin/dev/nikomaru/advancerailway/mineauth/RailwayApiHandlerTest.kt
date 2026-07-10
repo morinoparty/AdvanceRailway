@@ -12,6 +12,7 @@ package dev.nikomaru.advancerailway.mineauth
 import dev.nikomaru.advancerailway.AdvanceRailway
 import dev.nikomaru.advancerailway.Line3D
 import dev.nikomaru.advancerailway.Point3D
+import dev.nikomaru.advancerailway.error.DataSearchError
 import dev.nikomaru.advancerailway.file.data.GroupData
 import dev.nikomaru.advancerailway.file.data.RailwayData
 import dev.nikomaru.advancerailway.file.data.StationData
@@ -19,6 +20,8 @@ import dev.nikomaru.advancerailway.file.type.LineType
 import dev.nikomaru.advancerailway.file.value.GroupId
 import dev.nikomaru.advancerailway.file.value.RailwayId
 import dev.nikomaru.advancerailway.file.value.StationId
+import dev.nikomaru.advancerailway.utils.GroupUtils
+import dev.nikomaru.advancerailway.utils.RailwayUtils
 import dev.nikomaru.advancerailway.utils.StationUtils
 import dev.nikomaru.advancerailway.utils.Utils.json
 import io.mockk.every
@@ -389,6 +392,38 @@ class RailwayApiHandlerTest {
         val theEnd = server.getWorld("world_the_end")!!
         val result = StationUtils.nearStation(Location(theEnd, 0.0, 64.0, 0.0))
         assertNull(result.getOrNull())
+    }
+
+    // --- *Utils.get*Data の直接カバレッジ（NOT_FOUND / 破損ファイル分離）--------------------------------
+
+    @Test
+    @DisplayName("getStationData/getGroupData/getRailwayData return the stored entity")
+    fun getDataHappyPath() = runBlocking {
+        assertEquals("Central", StationUtils.getStationData(StationId("st01")).getOrNull()?.name)
+        assertEquals("Yamanote", GroupUtils.getGroupData(GroupId("g1")).getOrNull()?.name)
+        assertEquals("st01", RailwayUtils.getRailwayData(RailwayId("rw01")).getOrNull()?.fromStation?.value)
+    }
+
+    @Test
+    @DisplayName("get*Data returns NOT_FOUND for a missing id")
+    fun getDataNotFound() = runBlocking {
+        assertEquals(DataSearchError.NOT_FOUND, StationUtils.getStationData(StationId("nope")).leftOrNull())
+        assertEquals(DataSearchError.NOT_FOUND, GroupUtils.getGroupData(GroupId("nope")).leftOrNull())
+        assertEquals(DataSearchError.NOT_FOUND, RailwayUtils.getRailwayData(RailwayId("nope")).leftOrNull())
+    }
+
+    @Test
+    @DisplayName("getStationData maps a corrupt on-disk file to DESERIALIZATION_FAILED (crash isolation)")
+    fun getDataCorruptFile() = runBlocking {
+        // 破損ファイルは他テストへ漏らさないよう、このテスト内だけで作成・削除する。
+        val broken = dataFolder.resolve("data").resolve("stations").resolve("brokenst.json")
+        broken.writeText("{ this is not valid json")
+        try {
+            val result = StationUtils.getStationData(StationId("brokenst"))
+            assertEquals(DataSearchError.DESERIALIZATION_FAILED, result.leftOrNull())
+        } finally {
+            broken.delete()
+        }
     }
 
     @Test
