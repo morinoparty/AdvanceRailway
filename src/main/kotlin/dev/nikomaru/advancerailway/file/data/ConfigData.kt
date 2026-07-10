@@ -21,7 +21,7 @@ data class ConfigData(
     /**
      * MineAuth の HTTP API 連携を有効にするか。
      * false の場合、MineAuth が導入されていてもエンドポイントを登録しない。
-     * 有効時もエンドポイントは権限（advancerailway.mineauth.read）で保護される。
+     * 有効時もエンドポイントはサービストークンでの認証で保護される。
      */
     val mineAuthEnabled: Boolean = true,
 )

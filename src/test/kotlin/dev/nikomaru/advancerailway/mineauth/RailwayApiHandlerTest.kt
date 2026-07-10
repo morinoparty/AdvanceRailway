@@ -20,13 +20,9 @@ import dev.nikomaru.advancerailway.file.value.GroupId
 import dev.nikomaru.advancerailway.file.value.RailwayId
 import dev.nikomaru.advancerailway.file.value.StationId
 import dev.nikomaru.advancerailway.utils.Utils.json
-import io.ktor.http.ContentType
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.runBlocking
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import org.bukkit.World
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -94,17 +90,15 @@ class RailwayApiHandlerTest {
     }
 
     @Test
-    @DisplayName("getStation returns the station as application/json")
-    fun getStationReturnsJson() = runBlocking {
-        val response = handler.getStation("st01")
+    @DisplayName("getStation returns the station DTO")
+    fun getStationReturnsDto() = runBlocking {
+        val station = handler.getStation("st01")
 
-        assertEquals(ContentType.Application.Json, response.contentType)
-        val obj = json.parseToJsonElement(response.text).jsonObject
-        assertEquals("st01", obj["id"]!!.jsonPrimitive.content)
-        assertEquals("Central", obj["name"]!!.jsonPrimitive.content)
-        assertEquals("world", obj["world"]!!.jsonPrimitive.content)
-        assertEquals("#FF7F00", obj["color"]!!.jsonPrimitive.content)
-        assertEquals("64.0", obj["point"]!!.jsonObject["y"]!!.jsonPrimitive.content)
+        assertEquals("st01", station.id)
+        assertEquals("Central", station.name)
+        assertEquals("world", station.world)
+        assertEquals("#FF7F00", station.color)
+        assertEquals(64.0, station.point.y)
     }
 
     @Test
@@ -130,23 +124,21 @@ class RailwayApiHandlerTest {
     fun listStationsReturnsAll() = runBlocking {
         val response = handler.listStations()
 
-        val stations = json.parseToJsonElement(response.text).jsonObject["stations"]!!.jsonArray
-        assertEquals(2, stations.size)
-        val ids = stations.map { it.jsonObject["id"]!!.jsonPrimitive.content }.toSet()
+        assertEquals(2, response.stations.size)
+        val ids = response.stations.map { it.id }.toSet()
         assertEquals(setOf("st01", "st02"), ids)
     }
 
     @Test
     @DisplayName("getRailway maps line/stations/points to the DTO")
-    fun getRailwayReturnsJson() = runBlocking {
-        val response = handler.getRailway("rw01")
+    fun getRailwayReturnsDto() = runBlocking {
+        val railway = handler.getRailway("rw01")
 
-        val obj = json.parseToJsonElement(response.text).jsonObject
-        assertEquals("rw01", obj["id"]!!.jsonPrimitive.content)
-        assertEquals("UP_LINE", obj["lineType"]!!.jsonPrimitive.content)
-        assertEquals("st01", obj["fromStation"]!!.jsonPrimitive.content)
-        assertEquals("st02", obj["toStation"]!!.jsonPrimitive.content)
-        assertEquals("120", obj["timeRequired"]!!.jsonPrimitive.content)
+        assertEquals("rw01", railway.id)
+        assertEquals("UP_LINE", railway.lineType)
+        assertEquals("st01", railway.fromStation)
+        assertEquals("st02", railway.toStation)
+        assertEquals(120L, railway.timeRequired)
     }
 
     @Test
@@ -154,9 +146,8 @@ class RailwayApiHandlerTest {
     fun listRailwaysReturnsAll() = runBlocking {
         val response = handler.listRailways()
 
-        val railways = json.parseToJsonElement(response.text).jsonObject["railways"]!!.jsonArray
-        assertEquals(1, railways.size)
-        assertEquals("rw01", railways.first().jsonObject["id"]!!.jsonPrimitive.content)
+        assertEquals(1, response.railways.size)
+        assertEquals("rw01", response.railways.first().id)
     }
 
     @Test
@@ -182,20 +173,18 @@ class RailwayApiHandlerTest {
     fun listGroupsReturnsAll() = runBlocking {
         val response = handler.listGroups()
 
-        val groups = json.parseToJsonElement(response.text).jsonObject["groups"]!!.jsonArray
-        assertEquals(1, groups.size)
-        assertEquals("g1", groups.first().jsonObject["id"]!!.jsonPrimitive.content)
+        assertEquals(1, response.groups.size)
+        assertEquals("g1", response.groups.first().id)
     }
 
     @Test
     @DisplayName("getGroup returns the group with a hex color")
-    fun getGroupReturnsJson() = runBlocking {
-        val response = handler.getGroup("g1")
+    fun getGroupReturnsDto() = runBlocking {
+        val group = handler.getGroup("g1")
 
-        val obj = json.parseToJsonElement(response.text).jsonObject
-        assertEquals("g1", obj["id"]!!.jsonPrimitive.content)
-        assertEquals("Yamanote", obj["name"]!!.jsonPrimitive.content)
-        assertEquals("#00FF00", obj["color"]!!.jsonPrimitive.content)
+        assertEquals("g1", group.id)
+        assertEquals("Yamanote", group.name)
+        assertEquals("#00FF00", group.color)
     }
 
     @Test
