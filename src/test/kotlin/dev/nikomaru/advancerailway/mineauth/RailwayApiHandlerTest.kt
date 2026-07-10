@@ -19,10 +19,12 @@ import dev.nikomaru.advancerailway.file.type.LineType
 import dev.nikomaru.advancerailway.file.value.GroupId
 import dev.nikomaru.advancerailway.file.value.RailwayId
 import dev.nikomaru.advancerailway.file.value.StationId
+import dev.nikomaru.advancerailway.utils.StationUtils
 import dev.nikomaru.advancerailway.utils.Utils.json
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.runBlocking
+import org.bukkit.Location
 import org.bukkit.World
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -70,6 +72,8 @@ class RailwayApiHandlerTest {
 
         server = MockBukkit.mock()
         world = server.addSimpleWorld("world")
+        // 駅の無いワールド（StationUtils.nearStation の NOT_FOUND ケース用）。
+        server.addSimpleWorld("world_the_end")
         // 別ワールド（経路探索のクロスワールド NoPath ケース用）。
         server.addSimpleWorld("world_nether")
 
@@ -358,6 +362,33 @@ class RailwayApiHandlerTest {
         }
         assertEquals(HttpStatus.NOT_FOUND, error.status)
         assertEquals("no_station", error.code)
+    }
+
+    // --- StationUtils.nearStation（RailClickEvent が使う最寄り駅判定）---------------------------------
+
+    @Test
+    @DisplayName("nearStation returns the closest station in the clicked location's world")
+    fun nearStationReturnsClosest() = runBlocking {
+        // (2,-3) は st01 (1,64,-3) に最も近い（y は無視）。
+        val result = StationUtils.nearStation(Location(world, 2.0, 64.0, -3.0))
+        assertEquals("st01", result.getOrNull()?.value)
+    }
+
+    @Test
+    @DisplayName("nearStation never matches a station in another dimension")
+    fun nearStationExcludesOtherWorld() = runBlocking {
+        // 別ワールド nt01 と同座標 (0,0) をオーバーワールドでクリックしても nt01 は候補外。
+        // 同一ワールドの最寄り st01 が返る。
+        val result = StationUtils.nearStation(Location(world, 0.0, 64.0, 0.0))
+        assertEquals("st01", result.getOrNull()?.value)
+    }
+
+    @Test
+    @DisplayName("nearStation returns NOT_FOUND when the clicked world has no stations")
+    fun nearStationNoStationInWorld() = runBlocking {
+        val theEnd = server.getWorld("world_the_end")!!
+        val result = StationUtils.nearStation(Location(theEnd, 0.0, 64.0, 0.0))
+        assertNull(result.getOrNull())
     }
 
     @Test
