@@ -9,90 +9,121 @@
 
 package dev.nikomaru.advancerailway.route
 
+import arrow.core.Either
+import dev.nikomaru.advancerailway.Point3D
 import dev.nikomaru.advancerailway.file.value.GroupId
 import dev.nikomaru.advancerailway.file.value.RailwayId
 import dev.nikomaru.advancerailway.file.value.StationId
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertInstanceOf
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 
 /**
- * [RouteFinder] の純粋なグラフ探索ロジックの単体テスト。
- * Bukkit / Koin に依存しないため、サーバーを起動せずに [RouteEdge] を直接組み立てて検証する。
+ * [RouteFinder] の純粋な幾何グラフ探索（レール + 徒歩、A*）の単体テスト。
+ * Bukkit / Koin に依存しないため、[StationNode] / [RailEdge] を直接組み立てて検証する。
  */
 class RouteFinderTest {
 
-    private fun st(id: String) = StationId(id)
-    private fun rw(id: String) = RailwayId(id)
+    private fun station(id: String, x: Double, z: Double, world: String = "world") =
+        StationNode(StationId(id), world, Point3D(x, 64.0, z))
 
-    /** 双方向の辺（無向路線）を張るヘルパ。既定の buildEdges と同じ扱い。 */
-    private fun undirected(railway: String, a: String, b: String, time: Long, group: String? = null): List<RouteEdge> {
-        val g = group?.let { GroupId(it) }
-        return listOf(
-            RouteEdge(rw(railway), st(a), st(b), time, g),
-            RouteEdge(rw(railway), st(b), st(a), time, g),
-        )
+    private fun rail(id: String, from: StationNode, to: StationNode, time: Long, group: String? = null) =
+        RailEdge(RailwayId(id), from.id, to.id, time, group?.let { GroupId(it) })
+
+    private fun rightOrFail(result: Either<RouteError, Route>): Route {
+        assertInstanceOf(Either.Right::class.java, result, "expected a route but got $result")
+        return (result as Either.Right).value
     }
 
-    private fun rightOrFail(result: arrow.core.Either<RouteError, Route>): Route {
-        assertInstanceOf(arrow.core.Either.Right::class.java, result, "expected a route but got $result")
-        return (result as arrow.core.Either.Right).value
+    private fun leftOf(result: Either<RouteError, Route>): RouteError {
+        assertInstanceOf(Either.Left::class.java, result, "expected an error but got $result")
+        return (result as Either.Left).value
     }
 
     @Test
-    @DisplayName("finds a single-leg route across one railway")
-    fun singleLeg() {
-        val edges = undirected("rw-ab", "a", "b", 120)
-        val route = rightOrFail(RouteFinder.findRoute(edges, st("a"), st("b")))
+    @DisplayName("prefers a fast rail over the slow walking edge between far stations")
+    fun prefersRail() {
+        val a = station("a", 0.0, 0.0)
+        val b = station("b", 1000.0, 0.0) // walking ~232s
+        val route = rightOrFail(RouteFinder.findRoute(listOf(a, b), listOf(rail("rw", a, b, 10)), Waypoint.Station(a), b))
 
         assertEquals(1, route.legs.size)
-        assertEquals(120L, route.totalSeconds)
-        assertEquals(listOf("a", "b"), route.stations.map { it.value })
-        assertEquals("rw-ab", route.legs.first().railwayId.value)
+        assertEquals(TravelMode.RAIL, route.legs.first().mode)
+        assertEquals("rw", route.legs.first().railwayId?.value)
+        assertEquals(10L, route.totalSeconds)
     }
 
     @Test
-    @DisplayName("chains multiple railways into a multi-leg route and sums seconds")
-    fun multiLeg() {
-        val edges = undirected("rw-ab", "a", "b", 60) + undirected("rw-bc", "b", "c", 90)
-        val route = rightOrFail(RouteFinder.findRoute(edges, st("a"), st("c")))
+    @DisplayName("falls back to a walking leg when no rail connects the stations")
+    fun walkingFallback() {
+        val a = station("a", 0.0, 0.0)
+        val b = station("b", 10.0, 0.0) // 10 / 4.317 = 2.3 -> 2s
+        val route = rightOrFail(RouteFinder.findRoute(listOf(a, b), emptyList(), Waypoint.Station(a), b))
+
+        assertEquals(1, route.legs.size)
+        assertEquals(TravelMode.WALK, route.legs.first().mode)
+        assertNull(route.legs.first().railwayId)
+        assertEquals(2L, route.totalSeconds)
+    }
+
+    @Test
+    @DisplayName("takes a walking shortcut when it beats a slow rail")
+    fun walkingBeatsSlowRail() {
+        val a = station("a", 0.0, 0.0)
+        val b = station("b", 10.0, 0.0)
+        val route = rightOrFail(
+            RouteFinder.findRoute(listOf(a, b), listOf(rail("slow", a, b, 100)), Waypoint.Station(a), b)
+        )
+
+        assertEquals(TravelMode.WALK, route.legs.first().mode)
+        assertEquals(2L, route.totalSeconds)
+    }
+
+    @Test
+    @DisplayName("chains rail hops and prefers them over a long direct walk")
+    fun multiHopRail() {
+        val a = station("a", 0.0, 0.0)
+        val b = station("b", 1000.0, 0.0)
+        val c = station("c", 2000.0, 0.0)
+        val route = rightOrFail(
+            RouteFinder.findRoute(
+                listOf(a, b, c), listOf(rail("ab", a, b, 10), rail("bc", b, c, 10)), Waypoint.Station(a), c
+            )
+        )
 
         assertEquals(2, route.legs.size)
-        assertEquals(150L, route.totalSeconds)
+        assertTrue(route.legs.all { it.mode == TravelMode.RAIL })
         assertEquals(listOf("a", "b", "c"), route.stations.map { it.value })
-    }
-
-    @Test
-    @DisplayName("prefers the shortest total time over fewer hops")
-    fun prefersShortestTime() {
-        // Direct a->c costs 1000; the two-hop a->b->c costs 20. Dijkstra must pick the cheaper.
-        val edges = undirected("rw-ac", "a", "c", 1000) +
-            undirected("rw-ab", "a", "b", 10) +
-            undirected("rw-bc", "b", "c", 10)
-        val route = rightOrFail(RouteFinder.findRoute(edges, st("a"), st("c")))
-
         assertEquals(20L, route.totalSeconds)
-        assertEquals(listOf("a", "b", "c"), route.stations.map { it.value })
     }
 
     @Test
-    @DisplayName("treats railways as undirected: the reverse direction is routable")
-    fun reverseIsRoutable() {
-        val edges = undirected("rw-ab", "a", "b", 42)
-        val route = rightOrFail(RouteFinder.findRoute(edges, st("b"), st("a")))
+    @DisplayName("combines a walk from the current location with a rail hop")
+    fun originThenRail() {
+        val a = station("a", 1.0, 0.0)
+        val b = station("b", 1000.0, 0.0)
+        val origin = Waypoint.Origin("world", Point3D(0.0, 64.0, 0.0)) // ~0.2s walk to a
+        val route = rightOrFail(RouteFinder.findRoute(listOf(a, b), listOf(rail("ab", a, b, 10)), origin, b))
 
-        assertEquals(1, route.legs.size)
-        assertEquals(42L, route.totalSeconds)
-        assertEquals(listOf("b", "a"), route.stations.map { it.value })
+        assertEquals(2, route.legs.size)
+        assertEquals(TravelMode.WALK, route.legs.first().mode)
+        assertNull(route.legs.first().from) // starts from the current location
+        assertEquals(TravelMode.RAIL, route.legs.last().mode)
+        // current location is not a station, so the station list starts at 'a'.
+        assertEquals(listOf("a", "b"), route.stations.map { it.value })
     }
 
     @Test
-    @DisplayName("carries the group through to each leg")
+    @DisplayName("carries the group through rail legs")
     fun carriesGroup() {
-        val edges = undirected("rw-ab", "a", "b", 30, group = "main-line")
-        val route = rightOrFail(RouteFinder.findRoute(edges, st("a"), st("b")))
+        val a = station("a", 0.0, 0.0)
+        val b = station("b", 1000.0, 0.0)
+        val route = rightOrFail(
+            RouteFinder.findRoute(listOf(a, b), listOf(rail("rw", a, b, 10, group = "main-line")), Waypoint.Station(a), b)
+        )
 
         assertEquals("main-line", route.legs.first().group?.value)
     }
@@ -100,30 +131,29 @@ class RouteFinderTest {
     @Test
     @DisplayName("returns SameStation when from equals to")
     fun sameStation() {
-        val edges = undirected("rw-ab", "a", "b", 10)
-        val result = RouteFinder.findRoute(edges, st("a"), st("a"))
-
-        assertTrue(result.isLeft())
-        assertEquals(RouteError.SameStation, (result as arrow.core.Either.Left).value)
+        val a = station("a", 0.0, 0.0)
+        assertEquals(RouteError.SameStation, leftOf(RouteFinder.findRoute(listOf(a), emptyList(), Waypoint.Station(a), a)))
     }
 
     @Test
-    @DisplayName("returns NoPath when the destination is in a disconnected component")
-    fun noPathDisconnected() {
-        val edges = undirected("rw-ab", "a", "b", 10) + undirected("rw-cd", "c", "d", 10)
-        val result = RouteFinder.findRoute(edges, st("a"), st("d"))
-
-        assertTrue(result.isLeft())
-        assertEquals(RouteError.NoPath, (result as arrow.core.Either.Left).value)
+    @DisplayName("returns NoPath across worlds with no bridging rail")
+    fun noPathAcrossWorlds() {
+        val a = station("a", 0.0, 0.0, world = "world")
+        val b = station("b", 0.0, 0.0, world = "world_nether")
+        assertEquals(RouteError.NoPath, leftOf(RouteFinder.findRoute(listOf(a, b), emptyList(), Waypoint.Station(a), b)))
     }
 
     @Test
-    @DisplayName("returns NoPath when the origin has no edges at all")
-    fun noPathIsolatedOrigin() {
-        val edges = undirected("rw-bc", "b", "c", 10)
-        val result = RouteFinder.findRoute(edges, st("a"), st("c"))
+    @DisplayName("rail bridges two worlds even without a walking edge")
+    fun railBridgesWorlds() {
+        val a = station("a", 0.0, 0.0, world = "world")
+        val b = station("b", 0.0, 0.0, world = "world_nether")
+        val route = rightOrFail(
+            RouteFinder.findRoute(listOf(a, b), listOf(rail("portal", a, b, 50)), Waypoint.Station(a), b)
+        )
 
-        assertTrue(result.isLeft())
-        assertEquals(RouteError.NoPath, (result as arrow.core.Either.Left).value)
+        assertEquals(1, route.legs.size)
+        assertEquals(TravelMode.RAIL, route.legs.first().mode)
+        assertEquals(50L, route.totalSeconds)
     }
 }

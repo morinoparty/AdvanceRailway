@@ -26,9 +26,12 @@ import dev.nikomaru.advancerailway.mineauth.dto.RouteLegDto
 import dev.nikomaru.advancerailway.mineauth.dto.RouteResponse
 import dev.nikomaru.advancerailway.mineauth.dto.StationDto
 import dev.nikomaru.advancerailway.mineauth.dto.StationsResponse
+import dev.nikomaru.advancerailway.route.RailEdge
 import dev.nikomaru.advancerailway.route.Route
 import dev.nikomaru.advancerailway.route.RouteError
 import dev.nikomaru.advancerailway.route.RouteFinder
+import dev.nikomaru.advancerailway.route.StationNode
+import dev.nikomaru.advancerailway.route.Waypoint
 import dev.nikomaru.advancerailway.utils.GroupUtils
 import dev.nikomaru.advancerailway.utils.RailwayUtils
 import dev.nikomaru.advancerailway.utils.StationUtils
@@ -194,12 +197,13 @@ class RailwayApiHandler : KoinComponent {
         @Query("from") from: String,
         @Query("to") to: String,
     ): RouteResponse {
-        val fromId = requireStation(from)
-        val toId = requireStation(to)
+        val stations = loadStationNodes()
+        val fromNode = requireStation(from, stations)
+        val toNode = requireStation(to, stations)
         val railways = listIds("railways")
             .mapNotNull { RailwayUtils.getRailwayData(RailwayId(it)).getOrNull() }
-        val edges = RouteFinder.buildEdges(railways)
-        return when (val result = RouteFinder.findRoute(edges, fromId, toId)) {
+            .map { RailEdge(it.id, it.fromStation, it.toStation, it.timeRequired, it.group) }
+        return when (val result = RouteFinder.findRoute(stations, railways, Waypoint.Station(fromNode), toNode)) {
             is Either.Left -> when (result.value) {
                 RouteError.SameStation -> throw HttpError(
                     HttpStatus.BAD_REQUEST, "Departure and destination are the same station", code = "same_station"
@@ -210,22 +214,25 @@ class RailwayApiHandler : KoinComponent {
                 )
             }
 
-            is Either.Right -> result.value.toDto(fromId, toId)
+            is Either.Right -> result.value.toDto(fromNode.id, toNode.id)
         }
     }
 
+    /** 経路探索用に、全駅を幾何ノードとして読み込む。 */
+    private suspend fun loadStationNodes(): List<StationNode> = listIds("stations")
+        .mapNotNull { StationUtils.getStationData(StationId(it)).getOrNull() }
+        .map { StationNode(it.stationId, it.world.name, it.point) }
+
     /**
-     * 経路探索用に駅 ID を検証・解決する。
+     * 経路探索用に駅 ID を検証し、読み込み済みノードから解決する。
      * 不正な ID または存在しない駅は 404 `station_not_found` として弾く。
      */
-    private suspend fun requireStation(id: String): StationId {
+    private fun requireStation(id: String, stations: List<StationNode>): StationNode {
         if (!IdValidation.isValid(id)) {
             throw HttpError(HttpStatus.NOT_FOUND, "Station not found: $id", code = "station_not_found")
         }
-        val stationId = StationId(id)
-        StationUtils.getStationData(stationId).getOrNull()
+        return stations.find { it.id.value == id }
             ?: throw HttpError(HttpStatus.NOT_FOUND, "Station not found: $id", code = "station_not_found")
-        return stationId
     }
 
     /**
@@ -277,10 +284,11 @@ class RailwayApiHandler : KoinComponent {
         stations = stations.map { it.value },
         legs = legs.map {
             RouteLegDto(
-                railway = it.railwayId.value,
-                from = it.from.value,
+                mode = it.mode.name,
+                railway = it.railwayId?.value,
+                from = it.from?.value,
                 to = it.to.value,
-                timeRequired = it.timeRequired,
+                timeRequired = it.timeSeconds,
                 group = it.group?.value,
             )
         },

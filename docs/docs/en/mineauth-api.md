@@ -131,9 +131,14 @@ All responses are JSON, encoded with `kotlinx.serialization`.
 `GET /route?from={id}&to={id}` computes the fastest (least total travel time) route between two stations.
 Both `from` and `to` are **required** query parameters; omitting either returns `400 Bad Request`.
 
-All railways are treated as a weighted **undirected** graph, with each railway's `timeRequired` (seconds)
-as the edge weight; the shortest path is found with Dijkstra's algorithm. Directional routing
-(`UP_LINE` / `DOWN_LINE`) is not yet distinguished.
+The network is modelled as a weighted graph with two kinds of edges, and the fastest path is found with
+A\* search:
+
+- **Rail edges** — each railway is an undirected edge weighted by its `timeRequired` (seconds).
+  Directional routing (`UP_LINE` / `DOWN_LINE`) is not yet distinguished.
+- **Walking edges** — any two stations **in the same world** are also connected by walking, weighted by
+  their straight-line horizontal distance ÷ the Minecraft walk speed (`4.317` blocks/s). This lets a route
+  reach stations that no railway connects. Stations in **different worlds** are only reachable via rail.
 
 ```json
 {
@@ -142,15 +147,19 @@ as the edge weight; the shortest path is found with Dijkstra's algorithm. Direct
   "totalTime": 150,
   "stations": ["central", "west", "north"],
   "legs": [
-    { "railway": "central-to-west", "from": "central", "to": "west", "timeRequired": 60, "group": "main-line" },
-    { "railway": "west-to-north", "from": "west", "to": "north", "timeRequired": 90, "group": null }
+    { "mode": "RAIL", "railway": "central-to-west", "from": "central", "to": "west", "timeRequired": 60, "group": "main-line" },
+    { "mode": "WALK", "railway": null, "from": "west", "to": "north", "timeRequired": 90, "group": null }
   ]
 }
 ```
 
+- `mode` is `"RAIL"` (riding a railway) or `"WALK"` (walking between stations).
+- `railway` and `group` are `null` on `WALK` legs (and `group` is `null` for a railway with no group).
 - `totalTime` is the sum of all legs' `timeRequired`, in seconds.
 - `stations` is the ordered list of station ids passed through, from `from` to `to`.
-- `group` on a leg may be `null` if that railway does not belong to a group.
+
+The command form `/ar railway route <to>` additionally supports routing from a player's current location,
+but the HTTP endpoint only accepts station ids.
 
 Error responses carry a machine-readable `code`:
 

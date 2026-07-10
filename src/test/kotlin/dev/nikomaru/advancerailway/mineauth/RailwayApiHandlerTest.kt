@@ -26,6 +26,8 @@ import kotlinx.coroutines.runBlocking
 import org.bukkit.World
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
@@ -68,6 +70,8 @@ class RailwayApiHandlerTest {
 
         server = MockBukkit.mock()
         world = server.addSimpleWorld("world")
+        // 別ワールド（経路探索のクロスワールド NoPath ケース用）。
+        server.addSimpleWorld("world_nether")
 
         dataFolder = Files.createTempDirectory("advancerailway-test").toFile()
 
@@ -124,9 +128,9 @@ class RailwayApiHandlerTest {
     fun listStationsReturnsAll() = runBlocking {
         val response = handler.listStations()
 
-        assertEquals(3, response.stations.size)
+        assertEquals(4, response.stations.size)
         val ids = response.stations.map { it.id }.toSet()
-        assertEquals(setOf("st01", "st02", "st03"), ids)
+        assertEquals(setOf("st01", "st02", "st03", "nt01"), ids)
     }
 
     @Test
@@ -138,7 +142,7 @@ class RailwayApiHandlerTest {
         assertEquals("UP_LINE", railway.lineType)
         assertEquals("st01", railway.fromStation)
         assertEquals("st02", railway.toStation)
-        assertEquals(120L, railway.timeRequired)
+        assertEquals(2L, railway.timeRequired)
     }
 
     @Test
@@ -206,26 +210,43 @@ class RailwayApiHandlerTest {
     }
 
     @Test
-    @DisplayName("getRoute returns a single-leg route between connected stations")
+    @DisplayName("getRoute picks the fast rail leg between connected stations")
     fun getRouteReturnsRoute() = runBlocking {
         val route = handler.getRoute("st01", "st02")
 
         assertEquals("st01", route.from)
         assertEquals("st02", route.to)
-        assertEquals(120L, route.totalTime)
+        assertEquals(2L, route.totalTime)
         assertEquals(listOf("st01", "st02"), route.stations)
         assertEquals(1, route.legs.size)
+        assertEquals("RAIL", route.legs.first().mode)
         assertEquals("rw01", route.legs.first().railway)
         assertEquals("g1", route.legs.first().group)
     }
 
     @Test
-    @DisplayName("getRoute is undirected: the reverse direction also routes")
+    @DisplayName("getRoute is undirected: the reverse direction also routes by rail")
     fun getRouteReverse() = runBlocking {
         val route = handler.getRoute("st02", "st01")
 
         assertEquals(listOf("st02", "st01"), route.stations)
-        assertEquals(120L, route.totalTime)
+        assertEquals("RAIL", route.legs.first().mode)
+        assertEquals(2L, route.totalTime)
+    }
+
+    @Test
+    @DisplayName("getRoute reaches a rail-disconnected station via rail then a final walk")
+    fun getRouteWalkingFallback() = runBlocking {
+        // st03 has no railway; the cheapest path is rail st01->st02 then a short walk to st03.
+        val route = handler.getRoute("st01", "st03")
+
+        assertEquals(listOf("st01", "st02", "st03"), route.stations)
+        assertEquals("RAIL", route.legs.first().mode)
+        val last = route.legs.last()
+        assertEquals("WALK", last.mode)
+        assertNull(last.railway)
+        assertEquals("st03", last.to)
+        assertEquals(4L, route.totalTime)
     }
 
     @Test
@@ -239,10 +260,10 @@ class RailwayApiHandlerTest {
     }
 
     @Test
-    @DisplayName("getRoute throws NOT_FOUND (no_route) for a disconnected station")
+    @DisplayName("getRoute throws NOT_FOUND (no_route) for a station in another world with no bridging rail")
     fun getRouteNoPath() {
         val error = assertThrows<HttpError> {
-            runBlocking { handler.getRoute("st01", "st03") }
+            runBlocking { handler.getRoute("st01", "nt01") }
         }
         assertEquals(HttpStatus.NOT_FOUND, error.status)
         assertEquals("no_route", error.code)
@@ -274,9 +295,12 @@ class RailwayApiHandlerTest {
     private fun writeFixtures() {
         writeStation("st01", "Central", Point3D(1.0, 64.0, -3.0), Color(255, 127, 0))
         writeStation("st02", "North", Point3D(5.0, 64.0, 10.0), Color(0, 0, 255))
-        // st03 は路線に接続されない孤立駅（経路探索の NoPath ケース用）。
+        // st03 は路線に接続されない孤立駅（同一ワールドなので徒歩フォールバックで到達できる）。
         writeStation("st03", "Isolated", Point3D(9.0, 64.0, 20.0), Color(128, 128, 128))
+        // nt01 は別ワールドの駅（レール未接続 → クロスワールドで NoPath）。
+        writeStation("nt01", "Nether", Point3D(0.0, 64.0, 0.0), Color(200, 0, 0), server.getWorld("world_nether")!!)
 
+        // rw01 の所要時間は徒歩（約 3 秒）より速い 2 秒とし、st01<->st02 ではレールが選ばれるようにする。
         val railway = RailwayData(
             id = RailwayId("rw01"),
             group = GroupId("g1"),
@@ -285,7 +309,7 @@ class RailwayApiHandlerTest {
             line = Line3D(Point3D(1.0, 64.0, -3.0), Point3D(5.0, 64.0, 10.0)),
             fromStation = StationId("st01"),
             toStation = StationId("st02"),
-            timeRequired = 120L,
+            timeRequired = 2L,
             startPoint = Point3D(1.0, 64.0, -3.0),
             endPoint = Point3D(5.0, 64.0, 10.0),
             directionPoint = Point3D(2.0, 64.0, -3.0),
@@ -296,12 +320,12 @@ class RailwayApiHandlerTest {
         write("groups", "g1", json.encodeToString(group))
     }
 
-    private fun writeStation(id: String, name: String, point: Point3D, color: Color) {
+    private fun writeStation(id: String, name: String, point: Point3D, color: Color, inWorld: World = world) {
         val station = StationData(
             stationId = StationId(id),
             name = name,
             numbering = null,
-            world = world,
+            world = inWorld,
             point = point,
             overrideSize = null,
             color = color,
