@@ -1,0 +1,54 @@
+---
+title: 基本的な使い方
+description: 駅・グループ・路線の作り方と経路検索
+---
+
+# 基本的な使い方
+
+## 駅の追加
+
+`ar station add <stationId> <name> [point]` で駅を追加します。
+
+- `stationId` : 駅の ID（英数字・`_`・`-`）
+- `name` : 駅の表示名
+- `point` : 駅の座標（省略時はプレイヤーの現在地）
+
+### 例
+
+- `ar station add mr01 もりもと駅` — プレイヤーの位置に駅を追加します。
+- `ar station add mr01 もりもと駅 0,64,0` — 座標 `0,64,0` に駅を追加します。
+
+## グループ（路線）の作成
+
+`ar group add <groupId> <groupName>` でグループを作成します。グループは「路線」を表し、色を持ちます。
+
+- `groupId` : グループの ID
+- `groupName` : グループ（路線）の表示名
+
+### 例
+
+- `ar group add mr もりもと線` — 「もりもと線」というグループを作成します。
+
+## 路線（レール）の追加
+
+`ar railway add <railwayId> <start> <direction> <end>` で路線を追加します。
+
+- `railwayId` : 路線の ID
+- `start` / `direction` / `end` : 始点・方向・終点の座標
+
+始点・終点は、与えられた座標から最も近い駅が自動的に選ばれます。所要時間はレールの長さから自動計算されます。
+
+## グループへの追加・色の変更
+
+- `ar railway set group <railwayId> <groupId>` — 路線をグループに追加します。
+- `ar group set color <groupId> <r> <g> <b>` — グループ（路線）の色を変更します（各 0〜255）。
+
+## 経路検索
+
+`ar railway route <from> <to>` で 2 駅間の最短経路を検索します。`ar railway route <to>` なら現在地から検索します。
+
+:::note
+駅・グループは **表示名** でも指定できます（タブ補完では名前が候補に出ます）。`ar railway route ふれんちとーす島 赤松` のように名前で検索できます。
+:::
+
+レールでつながっていない駅どうしでも、同一ワールド内なら徒歩区間で補完して経路を表示します。出力は駅名・路線名で表示されます。

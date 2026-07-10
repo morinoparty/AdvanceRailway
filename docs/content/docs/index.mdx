@@ -1,0 +1,28 @@
+---
+title: はじめに
+description: AdvanceRailway ドキュメント
+---
+
+# AdvanceRailway
+
+AdvanceRailway は、マインクラフト内に敷設した鉄道ネットワーク（駅・路線・グループ）を構築・管理し、
+[squaremap](https://github.com/jpenilla/squaremap) の Web マップ上に表示できる [Paper](https://papermc.io/) / Bukkit プラグインです。
+
+## 主な機能
+
+- **駅・路線・グループ** をコマンドで定義し、JSON としてプラグインのデータフォルダに保存します。
+- 路線を **グループ（路線名・色）** でまとめられます。
+- 駅・路線を **squaremap のライブマップ** にマーカー・ラインとして描画します（squaremap は任意の依存）。
+- **経路検索**: 2 駅間（または現在地から駅）の最短経路を、レールと徒歩を組み合わせて求めます。
+- **MineAuth HTTP API**: MineAuth プラグイン導入時、駅・路線・グループ・経路を JSON で取得できる読み取り専用エンドポイントを公開します。詳しくは [MineAuth HTTP API](/docs/mineauth-api) を参照してください。
+
+## 重要なお知らせ
+
+:::warning
+現在このプラグインは pre-release 版です。バージョンアップにより破壊的な仕様変更が入る可能性があります。ご了承ください。
+:::
+
+## はじめかた
+
+まずは [基本的な使い方](/docs/usage) で駅・グループ・路線の作り方を確認してください。
+コマンドの一覧は [コマンド一覧](/docs/commands) にまとめています。

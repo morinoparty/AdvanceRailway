@@ -1,0 +1,22 @@
+---
+title: ファイル編集による変更
+description: データのエクスポート・インポート
+---
+
+# ファイル編集による変更
+
+## 使い方
+
+`ar file export <dataType> <fileType>` でマップデータをエクスポートします。
+
+- `dataType` : `station` / `railway` / `group` のいずれか
+- `fileType` : `json` / `csv` のいずれか
+
+このコマンドを実行すると、`plugins/AdvanceRailway/` フォルダにエクスポートされたファイルが保存されます。
+その後、エディターなどでファイルを編集し、`ar file import <dataType> <fileName>` でインポートします。
+インポート時のファイル形式は拡張子によって判定されます。
+
+:::warning
+ファイル操作はデータ破損の原因になります。十分注意して操作してください。
+また `import` を使用すると現在のデータは **上書き** されます。必ずバックアップを取ってから操作してください。
+:::

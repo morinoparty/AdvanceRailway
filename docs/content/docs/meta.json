@@ -1,0 +1,9 @@
+{
+    "pages": [
+        "index",
+        "usage",
+        "commands",
+        "file",
+        "mineauth-api"
+    ]
+}
