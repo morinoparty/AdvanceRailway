@@ -1,5 +1,5 @@
 /*
- * Written in 2024 by Nikomaru <nikomaru@nikomaru.dev>
+ * Written in 2024-2026 by Nikomaru <nikomaru@nikomaru.dev>
  *
  * To the extent possible under law, the author(s) have dedicated all copyright and related and neighboring rights to this software to the public domain worldwide.This software is distributed without any warranty.
  *
@@ -19,6 +19,7 @@ plugins {
     alias(libs.plugins.run.paper)
     alias(libs.plugins.resource.factory)
     alias(libs.plugins.detekt)
+    alias(libs.plugins.spotless)
 }
 
 group = "dev.nikomaru"
@@ -96,6 +97,30 @@ detekt {
     // 段階的に導入するため、指摘があってもビルドは失敗させない。
     ignoreFailures = true
     source.setFrom("src/main/kotlin", "src/test/kotlin")
+}
+
+spotless {
+    // 変更のあったファイルのみ対象にし、ライセンスヘッダーの年を「元の年-現在の年」の範囲へ自動更新する
+    // （例: 2024 のファイルを編集すると 2024-2026 になる）。未変更ファイルは触らない。
+    ratchetFrom("origin/master")
+
+    // detekt と同様、当面は非ゲート（`check`/`build` を失敗させない）。開発者が任意に
+    // `./gradlew spotlessApply`（一括付与・更新）/ `spotlessCheck`（検証）を実行する運用とする。
+    // 将来 CI ゲート化する場合は isEnforceCheck=true にし、CI の checkout に fetch-depth: 0 を付ける
+    // （ratchetFrom が origin/master の履歴を必要とするため）。
+    isEnforceCheck = false
+
+    // ライセンスヘッダーは config/spotless/license-header.kt に一元管理し、$YEAR トークンで年を表す。
+    val licenseHeader = rootProject.file("config/spotless/license-header.kt")
+    kotlin {
+        target("src/**/*.kt")
+        licenseHeaderFile(licenseHeader)
+    }
+    kotlinGradle {
+        target("*.gradle.kts")
+        // .gradle.kts の最初の非ヘッダー行（build: import / settings: pluginManagement 等）を区切りとする。
+        licenseHeaderFile(licenseHeader, "(import|plugins|pluginManagement|dependencyResolutionManagement|rootProject|@file)")
+    }
 }
 
 tasks {

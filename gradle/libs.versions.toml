@@ -46,6 +46,7 @@ shadow = { id = "com.gradleup.shadow", version = "9.4.3" }
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version = "2.4.0" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version = "2.4.0" }
 detekt = { id = "dev.detekt", version = "2.0.0-alpha.5" }
+spotless = { id = "com.diffplug.spotless", version = "7.0.2" }
 
 [bundles]
 commands = ["lamp-common", "lamp-bukkit"]
