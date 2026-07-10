@@ -244,6 +244,8 @@ class RailwayApiHandler : KoinComponent {
         folder.listFiles(File::isFile)
             ?.filter { it.extension == "json" }
             ?.map { it.nameWithoutExtension }
+            // 不正なファイル名（allowlist 外）を除外し、value class の init で例外→500 になるのを防ぐ。
+            ?.filter { IdValidation.isValid(it) }
             ?.sorted()
             ?: emptyList()
     }

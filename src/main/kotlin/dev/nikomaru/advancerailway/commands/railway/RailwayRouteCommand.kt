@@ -11,8 +11,6 @@ package dev.nikomaru.advancerailway.commands.railway
 
 import arrow.core.Either
 import dev.nikomaru.advancerailway.AdvanceRailway
-import dev.nikomaru.advancerailway.commands.DataPaths
-import dev.nikomaru.advancerailway.commands.getOrSend
 import dev.nikomaru.advancerailway.file.data.StationData
 import dev.nikomaru.advancerailway.file.value.IdValidation
 import dev.nikomaru.advancerailway.file.value.RailwayId
@@ -34,6 +32,7 @@ import org.bukkit.entity.Player
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import revxrsal.commands.annotation.Command
+import revxrsal.commands.annotation.Optional
 import revxrsal.commands.annotation.Subcommand
 import revxrsal.commands.bukkit.annotation.CommandPermission
 import kotlin.math.ceil
@@ -52,31 +51,43 @@ import kotlin.math.ceil
 class RailwayRouteCommand : KoinComponent {
     val plugin: AdvanceRailway by inject()
 
-    /** `/ar railway route <to>` — 現在地から。 */
+    /**
+     * 経路検索。
+     * - `/ar railway route <to>` — プレイヤーの現在地から `to` へ（プレイヤー専用）。
+     * - `/ar railway route <from> <to>` — 駅 `from` から駅 `to` へ。
+     *
+     * 引数が 1 つのときは末尾省略として現在地を起点にする（[second] が null）。
+     * 2 つのときは `first` を出発駅、[second] を到着駅として扱う。
+     * revxrsal Lamp 3.x は同名サブコマンドのアリティ多重定義を許さないため、
+     * 末尾 [Optional] 引数 1 つで両形式を受ける。
+     */
     @Subcommand("route")
-    suspend fun route(sender: CommandSender, to: StationId) {
-        val player = sender as? Player ?: run {
-            sender.sendRichMessage("<red>This form requires a player (uses your current location as the origin).")
-            return
-        }
+    suspend fun route(sender: CommandSender, first: StationId, @Optional second: StationId? = null) {
         val stations = loadAllStations()
-        val toNode = stations.find { it.id == to } ?: run {
-            sender.sendRichMessage("<red>Station not found: ${to.value}")
-            return
+        if (second == null) {
+            // route <to>: 現在地から first へ。
+            val player = sender as? Player ?: run {
+                sender.sendRichMessage("<red>This form requires a player (uses your current location as the origin).")
+                return
+            }
+            val toNode = stations.find { it.id == first } ?: run {
+                sender.sendRichMessage("<red>Station not found: ${first.value}")
+                return
+            }
+            val origin = Waypoint.Origin(player.location.world.name, player.location.toPoint3D())
+            search(sender, stations, origin, toNode)
+        } else {
+            // route <from> <to>: 駅から駅へ。
+            val fromNode = stations.find { it.id == first } ?: run {
+                sender.sendRichMessage("<red>Station not found: ${first.value}")
+                return
+            }
+            val toNode = stations.find { it.id == second } ?: run {
+                sender.sendRichMessage("<red>Station not found: ${second.value}")
+                return
+            }
+            search(sender, stations, Waypoint.Station(fromNode), toNode)
         }
-        val origin = Waypoint.Origin(player.location.world.name, player.location.toPoint3D())
-        search(sender, stations, origin, toNode)
-    }
-
-    /** `/ar railway route <from> <to>` — 駅から駅。 */
-    @Subcommand("route")
-    suspend fun route(sender: CommandSender, from: StationId, to: StationId) {
-        StationUtils.getStationData(from).getOrSend(sender) { "Station not found: ${from.value}" } ?: return
-        StationUtils.getStationData(to).getOrSend(sender) { "Station not found: ${to.value}" } ?: return
-        val stations = loadAllStations()
-        val fromNode = stations.find { it.id == from } ?: return
-        val toNode = stations.find { it.id == to } ?: return
-        search(sender, stations, Waypoint.Station(fromNode), toNode)
     }
 
     private suspend fun search(
@@ -126,20 +137,22 @@ class RailwayRouteCommand : KoinComponent {
 
     /** data/stations/ 配下のすべての駅を幾何ノードとして読み込む。 */
     private suspend fun loadAllStations(): List<StationNode> = withContext(Dispatchers.IO) {
-        listIds(DataPaths.stations)
+        listIds("stations")
             .mapNotNull { StationUtils.getStationData(StationId(it)).getOrNull() }
             .map { it.toNode() }
     }
 
     /** data/railways/ 配下のすべての路線をレール辺として読み込む。 */
     private suspend fun loadAllRailways(): List<RailEdge> = withContext(Dispatchers.IO) {
-        listIds(DataPaths.railways)
+        listIds("railways")
             .mapNotNull { RailwayUtils.getRailwayData(RailwayId(it)).getOrNull() }
             .map { RailEdge(it.id, it.fromStation, it.toStation, it.timeRequired, it.group) }
     }
 
-    private fun listIds(folder: java.io.File): List<String> =
-        folder.listFiles()?.filter { it.isFile && it.extension == "json" }
+    /** data/{type}/ 配下の JSON ファイル名を、allowlist を満たす ID として列挙する。 */
+    private fun listIds(type: String): List<String> =
+        plugin.dataFolder.resolve("data").resolve(type).listFiles()
+            ?.filter { it.isFile && it.extension == "json" }
             ?.map { it.nameWithoutExtension }
             ?.filter { IdValidation.isValid(it) }
             ?: emptyList()

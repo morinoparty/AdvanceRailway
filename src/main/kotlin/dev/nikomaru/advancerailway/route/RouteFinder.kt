@@ -120,14 +120,18 @@ object RouteFinder {
 
     private data class Node(val key: String, val stationId: StationId?, val world: String, val point: Point3D)
 
-    /** ノードへ入る辺の記録（経路復元用）。 */
+    /**
+     * ノードへ入る辺の記録（経路復元用）。
+     * [cost] は丸め前の秒（実数）で、A* の探索と許容ヒューリスティックの整合のために用いる。
+     * 表示用の整数秒は復元時に [cost] を丸めて求める。
+     */
     private data class Incoming(
         val fromKey: String,
         val mode: TravelMode,
         val railwayId: RailwayId?,
         val fromStation: StationId?,
         val toStation: StationId,
-        val timeSeconds: Long,
+        val cost: Double,
         val group: GroupId?,
     )
 
@@ -177,9 +181,9 @@ object RouteFinder {
             val current = nodeByKey.getValue(key)
             val baseG = gScore.getValue(key)
 
-            for ((neighbor, incomingEdge) in neighbors(current, stationNodes, railAdjacency, walkSpeed)) {
+            for ((neighbor, incomingEdge) in neighbors(current, stationNodes, nodeByKey, railAdjacency, walkSpeed)) {
                 if (neighbor.key in settled) continue
-                val tentative = baseG + incomingEdge.timeSeconds
+                val tentative = baseG + incomingEdge.cost
                 if (tentative < (gScore[neighbor.key] ?: Double.MAX_VALUE)) {
                     gScore[neighbor.key] = tentative
                     incoming[neighbor.key] = incomingEdge
@@ -190,13 +194,13 @@ object RouteFinder {
 
         if (goalNode.key !in gScore) return RouteError.NoPath.left()
 
-        // 終点から起点へ辿って経路を復元する。
+        // 終点から起点へ辿って経路を復元する。表示用の整数秒はここで各区間の実数コストを丸めて求める。
         val legs = ArrayDeque<RouteLeg>()
         var cursor = goalNode.key
         while (cursor != fromNode.key) {
             val edge = incoming[cursor] ?: return RouteError.NoPath.left()
             legs.addFirst(
-                RouteLeg(edge.mode, edge.railwayId, edge.fromStation, edge.toStation, edge.timeSeconds, edge.group)
+                RouteLeg(edge.mode, edge.railwayId, edge.fromStation, edge.toStation, edge.cost.roundToLong(), edge.group)
             )
             cursor = edge.fromKey
         }
@@ -212,27 +216,31 @@ object RouteFinder {
             )
         }.groupBy { it.from.value }
 
-    /** [current] から出る辺（レール + 同一ワールドの徒歩）を、A* の重み（秒）は非負の実数で列挙する。 */
+    /**
+     * [current] から出る辺（レール + 同一ワールドの徒歩）を列挙する。
+     * A* の重み [Incoming.cost] は丸め前の秒（実数）とし、ヒューリスティックとの整合を保つ。
+     * [nodeByKey] はレール辺の到達駅解決に用いる（呼び出しごとに再構築しないよう外から渡す）。
+     */
     private fun neighbors(
         current: Node,
         stationNodes: List<Node>,
+        nodeByKey: Map<String, Node>,
         railAdjacency: Map<String, List<RailEdge>>,
         walkSpeed: Double,
     ): List<Pair<Node, Incoming>> {
         val result = ArrayList<Pair<Node, Incoming>>()
-        val stationByKey = stationNodes.associateBy { it.key }
 
         // レール辺（起点が駅のときのみ）。
         current.stationId?.let { fromId ->
             for (edge in railAdjacency[current.key].orEmpty()) {
-                val neighbor = stationByKey[edge.to.value] ?: continue
+                val neighbor = nodeByKey[edge.to.value] ?: continue
                 result += neighbor to Incoming(
                     fromKey = current.key,
                     mode = TravelMode.RAIL,
                     railwayId = edge.railwayId,
                     fromStation = fromId,
                     toStation = edge.to,
-                    timeSeconds = edge.timeRequired,
+                    cost = edge.timeRequired.toDouble(),
                     group = edge.group,
                 )
             }
@@ -242,14 +250,13 @@ object RouteFinder {
         for (neighbor in stationNodes) {
             if (neighbor.key == current.key) continue
             if (neighbor.world != current.world) continue
-            val walkSeconds = (current.point.distanceTo2D(neighbor.point) / walkSpeed).roundToLong()
             result += neighbor to Incoming(
                 fromKey = current.key,
                 mode = TravelMode.WALK,
                 railwayId = null,
                 fromStation = current.stationId,
                 toStation = neighbor.stationId!!, // stationNodes は必ず駅。
-                timeSeconds = walkSeconds,
+                cost = current.point.distanceTo2D(neighbor.point) / walkSpeed,
                 group = null,
             )
         }

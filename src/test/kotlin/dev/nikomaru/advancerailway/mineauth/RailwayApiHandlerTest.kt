@@ -245,6 +245,7 @@ class RailwayApiHandlerTest {
         val last = route.legs.last()
         assertEquals("WALK", last.mode)
         assertNull(last.railway)
+        assertNull(last.group) // the rail group must not leak onto the walk leg
         assertEquals("st03", last.to)
         assertEquals(4L, route.totalTime)
     }
