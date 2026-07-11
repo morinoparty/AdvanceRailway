@@ -27,7 +27,33 @@ data class RenderedLeg(
     val lineLabel: String?,
     /** レール区間の路線 ID（`/ar railway info` へのリンク用）。徒歩区間は `null`。 */
     val railwayId: RailwayId?,
+    /** レール区間の路線（グループ）ID。まとめ表示のグルーピングキー。徒歩区間・無所属レールは `null`。 */
+    val group: GroupId?,
+    /** この区間の所要時間（秒）。まとめ表示で合算するため保持する。 */
+    val timeSeconds: Long,
     /** この区間の所要時間（分、小数第 1 位）。 */
+    val minutes: Double,
+)
+
+/**
+ * 表示用に、連続する同一路線のレール区間を 1 つにまとめたセグメント。
+ * 徒歩区間・無所属レール（路線 ID があってもグループ未設定）の区間は、それぞれ 1 セグメントとして残す。
+ */
+data class RenderedSegment(
+    /** 1 始まりのセグメント番号。 */
+    val index: Int,
+    /** セグメント先頭の出発地表示名。 */
+    val fromLabel: String,
+    /** セグメント末尾の到着駅表示名。 */
+    val toLabel: String,
+    val mode: TravelMode,
+    /** レールセグメントの路線名。徒歩・無所属レールは `null`。 */
+    val lineLabel: String?,
+    /** 単一区間のセグメントのときのみ路線 ID（`[詳細]` リンク用）。複数区間をまとめた場合は `null`。 */
+    val railwayId: RailwayId?,
+    /** このセグメントにまとめた区間（レッグ）数。 */
+    val legCount: Int,
+    /** セグメント全体の所要時間（分、小数第 1 位）。区間ごとの秒を合算してから丸める。 */
     val minutes: Double,
 )
 
@@ -73,6 +99,8 @@ object RouteRenderer {
                 mode = leg.mode,
                 lineLabel = leg.group?.let { groupName(it)?.takeIf(String::isNotBlank) ?: it.value },
                 railwayId = leg.railwayId,
+                group = leg.group,
+                timeSeconds = leg.timeSeconds,
                 minutes = minutes(leg.timeSeconds),
             )
         }
@@ -83,5 +111,43 @@ object RouteRenderer {
             legCount = legs.size,
             legs = legs,
         )
+    }
+
+    /**
+     * 連続する同一路線（同一グループ）のレール区間を 1 セグメントにまとめる。
+     *
+     * まとめ条件は「両区間ともレール」かつ「両区間とも同一の非 null グループ」。
+     * 徒歩区間や、グループ未設定のレール区間（路線名を持たない区間）は、それぞれ独立したセグメントにする。
+     * まとめた区間の所要時間は、各区間の秒を合算してから丸めることで丸め誤差の累積を防ぐ。
+     *
+     * @param legs [render] が返した区間リスト（[RenderedRoute.legs]）。
+     * @return 路線ごとにまとめた表示用セグメント列（番号は 1 から振り直す）。
+     */
+    fun groupLegs(legs: List<RenderedLeg>): List<RenderedSegment> {
+        val groups = mutableListOf<MutableList<RenderedLeg>>()
+        for (leg in legs) {
+            val current = groups.lastOrNull()
+            val mergeable = current != null &&
+                leg.mode == TravelMode.RAIL &&
+                current.last().mode == TravelMode.RAIL &&
+                leg.group != null &&
+                current.last().group == leg.group
+            if (mergeable) current!!.add(leg) else groups.add(mutableListOf(leg))
+        }
+        return groups.mapIndexed { index, group ->
+            val first = group.first()
+            val last = group.last()
+            RenderedSegment(
+                index = index + 1,
+                fromLabel = first.fromLabel,
+                toLabel = last.toLabel,
+                mode = first.mode,
+                lineLabel = first.lineLabel,
+                // 単一区間のときだけ [詳細] リンク用の路線 ID を残す。
+                railwayId = group.singleOrNull()?.railwayId,
+                legCount = group.size,
+                minutes = minutes(group.sumOf { it.timeSeconds }),
+            )
+        }
     }
 }

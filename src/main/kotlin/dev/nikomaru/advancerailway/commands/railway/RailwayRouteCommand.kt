@@ -125,11 +125,13 @@ class RailwayRouteCommand {
             "<green>経路: <white>${esc(route.fromLabel)}</white> <gray>→</gray> <white>${esc(route.toLabel)}</white></green> " +
                 "<gray>(合計 ${route.totalMinutes} 分 / ${route.legCount} 区間)"
         )
-        route.legs.forEach { leg ->
-            val via = when (leg.mode) {
+        // 連続する同一路線の区間を 1 行にまとめて表示する。
+        RouteRenderer.groupLegs(route.legs).forEach { seg ->
+            val via = when (seg.mode) {
                 TravelMode.RAIL -> {
-                    val line = leg.lineLabel?.let { "<aqua>[${esc(it)}]</aqua>" } ?: "<gray>[路線]</gray>"
-                    val info = leg.railwayId
+                    val line = seg.lineLabel?.let { "<aqua>[${esc(it)}]</aqua>" } ?: "<gray>[路線]</gray>"
+                    // まとめ行（複数区間）は路線をまたぐため [詳細] を付けない。単一区間のみリンクを残す。
+                    val info = seg.railwayId
                         ?.let { " <click:run_command:/ar railway info ${it.value}><dark_gray>[詳細]</dark_gray></click>" }
                         ?: ""
                     "$line$info"
@@ -137,9 +139,11 @@ class RailwayRouteCommand {
 
                 TravelMode.WALK -> "<gray>徒歩</gray>"
             }
+            // 複数区間をまとめた行だけ区間数を併記する。
+            val time = if (seg.legCount > 1) "${seg.legCount}区間 / ${seg.minutes} 分" else "${seg.minutes} 分"
             sender.sendRichMessage(
-                "<dark_gray>${leg.index}.</dark_gray> <white>${esc(leg.fromLabel)}</white> " +
-                    "<yellow>→</yellow> <white>${esc(leg.toLabel)}</white> $via <gray>(${leg.minutes} 分)"
+                "<dark_gray>${seg.index}.</dark_gray> <white>${esc(seg.fromLabel)}</white> " +
+                    "<yellow>→</yellow> <white>${esc(seg.toLabel)}</white> $via <gray>($time)"
             )
         }
     }
