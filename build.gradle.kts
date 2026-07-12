@@ -46,8 +46,8 @@ dependencies {
 
     compileOnly(kotlin("stdlib"))
 
-    implementation(libs.lamp.common)
-    implementation(libs.lamp.bukkit)
+    // Incendo Cloud コマンドフレームワーク（morinoparty 系プラグインと統一）。
+    implementation(libs.bundles.commands.cloud)
 
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.serialization.csv)
@@ -135,17 +135,32 @@ tasks {
         // （MineAuth 連携は @Serializable DTO を返し、MineAuth 側がそのシリアライザを解決するため）。
         relocate("org.koin", "dev.nikomaru.advancerailway.libs.koin")
         relocate("arrow", "dev.nikomaru.advancerailway.libs.arrow")
-        relocate("revxrsal.commands", "dev.nikomaru.advancerailway.libs.lamp")
+        // Cloud は relocate しない。Paper の Brigadier ネイティブ連携（cloud-paper）が反射で
+        // 内部クラスを解決するため relocate は壊れやすく、プラグイン間はクラスローダで分離されるため不要。
         relocate("com.github.shynixn.mccoroutine", "dev.nikomaru.advancerailway.libs.mccoroutine")
     }
     runServer {
-        minecraftVersion("1.21.8")
+        // 実ターゲットは Paper 26.x（Minecraft 1.21.11）。従来の 1.21.8 は squaremap(api 26.2) が
+        // 読み込めず陳腐化していたため更新する。
+        minecraftVersion("26.2")
+        // 他の worktree のテストサーバと同時起動してもポート衝突しないよう既定の 25565 からずらす。
+        args("--port", "25599")
+        // hard depend の ProtocolLib / squaremap をテストサーバへ自動導入して onEnable を通す。
+        downloadPlugins {
+            hangar("squaremap", "1.3.14")
+            // 26.x 対応は ProtocolLib の dev-build のみ（安定版 5.4.0 は 1.21.8 まで）。
+            github("dmulloy2", "ProtocolLib", "dev-build", "ProtocolLib.jar")
+        }
     }
     withType<JavaCompile>().configureEach {
         options.encoding = "UTF-8"
     }
     test {
         useJUnitPlatform()
+        // 生成された plugin.yml の version が project.version と一致するかを PluginYmlTest で検証するため、
+        // 期待値をシステムプロパティで渡す。plugin.yml 生成（processResources）にも依存させる。
+        dependsOn("processResources")
+        systemProperty("advancerailway.projectVersion", project.version.toString())
         testLogging {
             showStandardStreams = true
             events("passed", "skipped", "failed")
@@ -160,7 +175,9 @@ sourceSets.main {
     resourceFactory {
         bukkitPluginYaml {
             name = "AdvanceRailway"
-            version = "miencraft_plugin_version"
+            // プロジェクトのバージョンをそのまま plugin.yml へ反映する。
+            // （固定文字列を置くと `ar info` にプレースホルダがそのまま出る。回帰は PluginYmlTest で防ぐ。）
+            version = project.version.toString()
             website = "https://github.com/Nlkomaru/AdvanceRailway"
             depend = listOf("ProtocolLib", "squaremap")
             // MineAuth があれば HTTP エンドポイントを登録するが、無くても単体で動作する。
@@ -168,37 +185,57 @@ sourceSets.main {
             main = "$group.advancerailway.AdvanceRailway"
             authors = listOf("Nikomaru")
 
+            // 権限はロール型の 3 階層で構成する。
+            //   admin  (OP)   … すべての操作。user + manage + 運用系(inspect/debug) を束ねる。
+            //   user   (TRUE) … すべての閲覧。全員がデフォルトで持つ。
+            //   manage (OP)   … すべての編集。op のみ。
+            // リーフにも明示的な default を置く。親が default=TRUE でリーフへ true を
+            // カスケードする旧構造こそが「全員が書き込み可能」バグの原因だったため、
+            // TRUE を持つのは閲覧リーフだけに限定する。回帰は PluginYmlTest が監視する。
             permissions {
                 register("advancerailway.admin") {
+                    default = Permission.Default.OP
+                    children(
+                        "advancerailway.user",
+                        "advancerailway.manage",
+                        "advancerailway.inspect",
+                        "advancerailway.debug",
+                    )
+                }
+                register("advancerailway.user") {
                     default = Permission.Default.TRUE
                     children(
-                        "advancerailway.command.group",
-                        "advancerailway.command.station",
-                        "advancerailway.command.railway",
-                        "advancerailway.command.common"
+                        "advancerailway.info",
+                        "advancerailway.station.view",
+                        "advancerailway.railway.view",
+                        "advancerailway.railway.route",
+                        "advancerailway.group.view",
                     )
                 }
-                // 旧来の粗い（coarse）ノードは read/write 双方の親として残し、
-                // 既存の付与（admin → coarse → read+write）をそのまま維持する。
-                // write リーフには default を付けない（op 以外に書き込みを与えないため）。
-                register("advancerailway.command.group") {
+                register("advancerailway.manage") {
+                    default = Permission.Default.OP
                     children(
-                        "advancerailway.command.group.read",
-                        "advancerailway.command.group.write"
+                        "advancerailway.station.manage",
+                        "advancerailway.railway.manage",
+                        "advancerailway.group.manage",
+                        "advancerailway.file",
+                        "advancerailway.reload",
                     )
                 }
-                register("advancerailway.command.station") {
-                    children(
-                        "advancerailway.command.station.read",
-                        "advancerailway.command.station.write"
-                    )
-                }
-                register("advancerailway.command.railway") {
-                    children(
-                        "advancerailway.command.railway.read",
-                        "advancerailway.command.railway.write"
-                    )
-                }
+                // 閲覧リーフ（全員 TRUE）。
+                register("advancerailway.info") { default = Permission.Default.TRUE }
+                register("advancerailway.station.view") { default = Permission.Default.TRUE }
+                register("advancerailway.railway.view") { default = Permission.Default.TRUE }
+                register("advancerailway.railway.route") { default = Permission.Default.TRUE }
+                register("advancerailway.group.view") { default = Permission.Default.TRUE }
+                // 編集・運用リーフ（OP のみ）。
+                register("advancerailway.station.manage") { default = Permission.Default.OP }
+                register("advancerailway.railway.manage") { default = Permission.Default.OP }
+                register("advancerailway.group.manage") { default = Permission.Default.OP }
+                register("advancerailway.file") { default = Permission.Default.OP }
+                register("advancerailway.reload") { default = Permission.Default.OP }
+                register("advancerailway.inspect") { default = Permission.Default.OP }
+                register("advancerailway.debug") { default = Permission.Default.OP }
             }
             apiVersion = "1.21"
         }
