@@ -31,14 +31,14 @@ import dev.nikomaru.advancerailway.utils.command.GroupIdParser
 import dev.nikomaru.advancerailway.utils.command.Point3DParser
 import dev.nikomaru.advancerailway.utils.command.RailwayIdParser
 import dev.nikomaru.advancerailway.utils.command.StationIdParser
-import dev.nikomaru.advancerailway.commands.CommandSenderMapper
 import org.bukkit.Bukkit
 import org.bukkit.command.CommandSender
-import org.incendo.cloud.CommandManager
 import org.incendo.cloud.annotations.AnnotationParser
+import org.incendo.cloud.bukkit.CloudBukkitCapabilities
 import org.incendo.cloud.execution.ExecutionCoordinator
 import org.incendo.cloud.kotlin.coroutines.annotations.installCoroutineSupport
-import org.incendo.cloud.paper.PaperCommandManager
+import org.incendo.cloud.paper.LegacyPaperCommandManager
+import org.incendo.cloud.setting.ManagerSetting
 import org.koin.core.context.GlobalContext
 import org.koin.core.context.loadKoinModules
 import org.koin.dsl.module
@@ -103,12 +103,21 @@ open class AdvanceRailway: SuspendingJavaPlugin() {
     }
 
     private fun setCommand() {
-        // Incendo Cloud へ移行中。Brigadier ネイティブ送信者を CommandSender へマップし、
+        // Brigadier ネイティブ（modern PaperCommandManager）は unquoted 引数が ASCII 限定で、
+        // 駅名などの日本語入力を受け付けないため、Bukkit レガシー登録の
+        // LegacyPaperCommandManager を使う（AdvancedShopFinder と同じ構成）。
         // asyncCoordinator でハンドラを実行、installCoroutineSupport で suspend ハンドラを許可する。
-        val commandManager: CommandManager<CommandSender> =
-            PaperCommandManager.builder(CommandSenderMapper())
-                .executionCoordinator(ExecutionCoordinator.asyncCoordinator())
-                .buildOnEnable(this)
+        val commandManager: LegacyPaperCommandManager<CommandSender> =
+            LegacyPaperCommandManager.createNative(
+                this,
+                ExecutionCoordinator.asyncCoordinator(),
+            )
+
+        if (commandManager.hasCapability(CloudBukkitCapabilities.ASYNCHRONOUS_COMPLETION)) {
+            commandManager.registerAsynchronousCompletions()
+        }
+
+        commandManager.settings().set(ManagerSetting.ALLOW_UNSAFE_REGISTRATION, true)
 
         // ID・座標のカスタムパーサを登録する（補完＝表示名、解決＝名前 or ID）。
         with(commandManager.parserRegistry()) {
