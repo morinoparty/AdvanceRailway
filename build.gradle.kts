@@ -23,7 +23,8 @@ plugins {
 }
 
 group = "dev.nikomaru"
-version = "1.0-SNAPSHOT"
+// version は gradle.properties の `version=VersionPlaceholder` から供給され、
+// リリース時に upload.yml がタグへ sed 置換する（MineAuth と同じ方式）。ここには直書きしない。
 
 fun captureVersion(dependency: Dependency): String {
     return dependency.version ?: throw IllegalArgumentException("Version not found for $dependency")

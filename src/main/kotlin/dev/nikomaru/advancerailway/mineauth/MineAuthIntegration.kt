@@ -29,9 +29,10 @@ object MineAuthIntegration : KoinComponent {
      * ただし [ConfigData.mineAuthEnabled] が false の場合は登録をスキップする（フェイルセーフ）。
      * 登録した場合でも各エンドポイントはサービストークンでの認証で保護される（[RailwayApiHandler] 参照）。
      *
-     * MineAuth の [MineAuthApi] は Bukkit の ServicesManager 経由で取得する。
-     * 登録は all-or-nothing で、検証に失敗すると [EndpointRegistrationException] が送出されるため、
-     * その場合でも onEnable を巻き込まないようフェイルセーフでログのみ出力する。
+     * mineauth-api は compileOnly のため、MineAuth 不在時にその型を参照するクラスをロードすると
+     * NoClassDefFoundError で enable ごと落ちる。そこで MineAuth の型に触れるコードは [Registrar] に
+     * 閉じ込め、この object 自体は MineAuth の型を一切参照せず、プラグインの存在を確認してから
+     * [Registrar] をロードする（softdepend の定石）。
      *
      * @param plugin AdvanceRailway 本体
      */
@@ -43,19 +44,41 @@ object MineAuthIntegration : KoinComponent {
             return
         }
 
-        // MineAuth 本体を ServicesManager 経由で取得する（未導入・非対応バージョンでは null）。
-        val api = MineAuthApi.get(plugin.server)
-        if (api == null) {
+        // MineAuth 不在なら Registrar（MineAuth の型を参照する）をロードする前に抜ける。
+        if (plugin.server.pluginManager.getPlugin("MineAuth") == null) {
             plugin.logger.info("MineAuth not found; skipping HTTP endpoint registration.")
             return
         }
 
-        try {
-            val registration = api.register(plugin, RailwayApiHandler())
-            plugin.logger.info("Registered MineAuth HTTP endpoints under ${registration.basePath}")
-        } catch (e: EndpointRegistrationException) {
-            // 検証エラーで登録に失敗しても AdvanceRailway 本体の起動は継続する。
-            plugin.logger.warning("Failed to register MineAuth HTTP endpoints: ${e.message}")
+        Registrar.register(plugin)
+    }
+
+    /**
+     * MineAuth の型（compileOnly）を参照する処理の置き場。MineAuth の存在確認後にのみ
+     * ロードされるよう、[MineAuthIntegration.register] 以外から参照しないこと。
+     */
+    private object Registrar {
+
+        /**
+         * MineAuth の [MineAuthApi] は Bukkit の ServicesManager 経由で取得する
+         * （バージョン非対応等でサービス未登録なら null）。
+         * 登録は all-or-nothing で、検証に失敗すると [EndpointRegistrationException] が送出されるため、
+         * その場合でも onEnable を巻き込まないようフェイルセーフでログのみ出力する。
+         */
+        fun register(plugin: AdvanceRailway) {
+            val api = MineAuthApi.get(plugin.server)
+            if (api == null) {
+                plugin.logger.info("MineAuth API service not found; skipping HTTP endpoint registration.")
+                return
+            }
+
+            try {
+                val registration = api.register(plugin, RailwayApiHandler())
+                plugin.logger.info("Registered MineAuth HTTP endpoints under ${registration.basePath}")
+            } catch (e: EndpointRegistrationException) {
+                // 検証エラーで登録に失敗しても AdvanceRailway 本体の起動は継続する。
+                plugin.logger.warning("Failed to register MineAuth HTTP endpoints: ${e.message}")
+            }
         }
     }
 }
