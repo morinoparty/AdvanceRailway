@@ -10,66 +10,45 @@
 package dev.nikomaru.advancerailway.utils.command
 
 import dev.nikomaru.advancerailway.Point3D
-import io.mockk.every
-import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.assertThrows
-import revxrsal.commands.command.CommandParameter
-import revxrsal.commands.exception.InvalidNumberException
-import revxrsal.commands.process.ValueResolver
 
 /**
- * [Point3DParser.resolve] が壊れた入力（引数の数が違う・数値でない）に対して
- * クラッシュせず [InvalidNumberException] を送出することを確認する（#134 の回帰防止）。
+ * [Point3DParser.parsePoint3D] が壊れた入力（引数の数が違う・数値でない）に対して
+ * クラッシュせず null を返すことを確認する（#134 の回帰防止）。
+ * Cloud 移行後はパーサ本体が null を [org.incendo.cloud.parser.ArgumentParseResult.failure] に変換する。
  */
 class Point3DParserTest {
 
-    private fun contextFor(input: String): ValueResolver.ValueResolverContext {
-        val context = mockk<ValueResolver.ValueResolverContext>()
-        val parameter = mockk<CommandParameter>(relaxed = true)
-        every { context.pop() } returns input
-        every { context.parameter() } returns parameter
-        return context
+    @Test
+    @DisplayName("parses a well formed comma separated point")
+    fun parsesWellFormedPoint() {
+        assertEquals(Point3D(1.5, 2.0, -3.25), Point3DParser.parsePoint3D("1.5,2,-3.25"))
     }
 
     @Test
-    @DisplayName("resolve parses a well formed comma separated point")
-    fun resolveParsesWellFormedPoint() {
-        val point = Point3DParser.resolve(contextFor("1.5,2,-3.25"))
-        assertEquals(Point3D(1.5, 2.0, -3.25), point)
+    @DisplayName("returns null when too few components are given")
+    fun returnsNullOnTooFewComponents() {
+        assertNull(Point3DParser.parsePoint3D("1,2"))
     }
 
     @Test
-    @DisplayName("resolve throws InvalidNumberException when too few components are given")
-    fun resolveThrowsOnTooFewComponents() {
-        assertThrows<InvalidNumberException> {
-            Point3DParser.resolve(contextFor("1,2"))
-        }
+    @DisplayName("returns null when too many components are given")
+    fun returnsNullOnTooManyComponents() {
+        assertNull(Point3DParser.parsePoint3D("1,2,3,4"))
     }
 
     @Test
-    @DisplayName("resolve throws InvalidNumberException when too many components are given")
-    fun resolveThrowsOnTooManyComponents() {
-        assertThrows<InvalidNumberException> {
-            Point3DParser.resolve(contextFor("1,2,3,4"))
-        }
+    @DisplayName("returns null on non numeric components")
+    fun returnsNullOnNonNumericComponents() {
+        assertNull(Point3DParser.parsePoint3D("a,b,c"))
     }
 
     @Test
-    @DisplayName("resolve throws InvalidNumberException on non numeric components")
-    fun resolveThrowsOnNonNumericComponents() {
-        assertThrows<InvalidNumberException> {
-            Point3DParser.resolve(contextFor("a,b,c"))
-        }
-    }
-
-    @Test
-    @DisplayName("resolve throws InvalidNumberException on blank input")
-    fun resolveThrowsOnBlankInput() {
-        assertThrows<InvalidNumberException> {
-            Point3DParser.resolve(contextFor(""))
-        }
+    @DisplayName("returns null on blank input")
+    fun returnsNullOnBlankInput() {
+        assertNull(Point3DParser.parsePoint3D(""))
     }
 }

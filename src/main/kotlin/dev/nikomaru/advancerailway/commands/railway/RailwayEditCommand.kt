@@ -9,59 +9,80 @@
 
 package dev.nikomaru.advancerailway.commands.railway
 
-import dev.nikomaru.advancerailway.AdvanceRailway
 import dev.nikomaru.advancerailway.commands.getOrSend
 import dev.nikomaru.advancerailway.file.type.LineType
 import dev.nikomaru.advancerailway.file.value.GroupId
+import dev.nikomaru.advancerailway.file.value.IdValidation
 import dev.nikomaru.advancerailway.file.value.RailwayId
 import dev.nikomaru.advancerailway.file.value.StationId
 import dev.nikomaru.advancerailway.utils.RailwayUtils
 import org.bukkit.command.CommandSender
-import org.koin.core.component.KoinComponent
-import org.koin.core.component.inject
-import revxrsal.commands.annotation.Command
-import revxrsal.commands.annotation.Subcommand
-import revxrsal.commands.bukkit.annotation.CommandPermission
+import org.incendo.cloud.annotations.Argument
+import org.incendo.cloud.annotations.Command
+import org.incendo.cloud.annotations.CommandDescription
+import org.incendo.cloud.annotations.Permission
 
-@Command("ar railway", "advancerailway railway")
-@CommandPermission("advancerailway.command.railway.write")
-class RailwayEditCommand: KoinComponent {
-    val plugin: AdvanceRailway by inject()
+@Command("ar|advancerailway railway")
+class RailwayEditCommand {
 
-    @Subcommand("set line-type")
-    suspend fun setLineType(sender: CommandSender, railwayId: RailwayId, lineType: LineType) {
-        val data = RailwayUtils.getRailwayData(railwayId).getOrSend(sender) { "Railway not found" } ?: return
+    @Command("set line-type <railwayId> <lineType>")
+    @CommandDescription("路線の種別（LineType）を設定します")
+    @Permission("advancerailway.railway.manage")
+    suspend fun setLineType(
+        sender: CommandSender,
+        @Argument("railwayId") railwayId: RailwayId,
+        @Argument("lineType") lineType: LineType,
+    ) {
+        val data = RailwayUtils.getRailwayData(railwayId).getOrSend(sender) { "<red>路線が見つかりません。" } ?: return
         data.copy(lineType = lineType).save()
-        sender.sendRichMessage("Line type set to $lineType")
+        sender.sendRichMessage("<green>種別を <white>$lineType</white> に変更しました。")
     }
 
-    @Subcommand("set group")
-    suspend fun setGroup(sender: CommandSender, railwayId: RailwayId, groupId: GroupId) {
-        val data = RailwayUtils.getRailwayData(railwayId).getOrSend(sender) { "Railway not found" } ?: return
-        data.copy(group = groupId).save()
-        sender.sendRichMessage("Group set to $groupId")
+    @Command("set group <railwayId> <group>")
+    @CommandDescription("路線の所属グループを設定します（none で解除）")
+    @Permission("advancerailway.railway.manage")
+    suspend fun setGroup(
+        sender: CommandSender,
+        @Argument("railwayId") railwayId: RailwayId,
+        @Argument("group") group: String,
+    ) {
+        val data = RailwayUtils.getRailwayData(railwayId).getOrSend(sender) { "<red>路線が見つかりません。" } ?: return
+        if (group.equals("none", ignoreCase = true)) {
+            data.copy(group = null).save()
+            sender.sendRichMessage("<green>グループを解除しました。")
+            return
+        }
+        if (!IdValidation.isValid(group)) {
+            sender.sendRichMessage("<red>グループ ID が不正です: <white>$group</white>")
+            return
+        }
+        data.copy(group = GroupId(group)).save()
+        sender.sendRichMessage("<green>グループを <white>$group</white> に設定しました。")
     }
 
-    @Subcommand("unset group")
-    suspend fun unsetGroup(sender: CommandSender, railwayId: RailwayId) {
-        val data = RailwayUtils.getRailwayData(railwayId).getOrSend(sender) { "Railway not found" } ?: return
-        data.copy(group = null).save()
-        sender.sendRichMessage("Group unset")
-    }
-
-    @Subcommand("set from-station")
-    suspend fun setFromStation(sender: CommandSender, railwayId: RailwayId, stationId: StationId) {
-        val data = RailwayUtils.getRailwayData(railwayId).getOrSend(sender) { "Railway not found" } ?: return
+    @Command("set from-station <railwayId> <stationId>")
+    @CommandDescription("路線の始発駅を設定します")
+    @Permission("advancerailway.railway.manage")
+    suspend fun setFromStation(
+        sender: CommandSender,
+        @Argument("railwayId") railwayId: RailwayId,
+        @Argument("stationId") stationId: StationId,
+    ) {
+        val data = RailwayUtils.getRailwayData(railwayId).getOrSend(sender) { "<red>路線が見つかりません。" } ?: return
         data.copy(fromStation = stationId).save()
-        sender.sendRichMessage("From station set to $stationId")
-
+        sender.sendRichMessage("<green>始点駅を <white>$stationId</white> に変更しました。")
     }
 
-    @Subcommand("set to-station")
-    suspend fun setToStation(sender: CommandSender, railwayId: RailwayId, stationId: StationId) {
-        val data = RailwayUtils.getRailwayData(railwayId).getOrSend(sender) { "Railway not found" } ?: return
+    @Command("set to-station <railwayId> <stationId>")
+    @CommandDescription("路線の終着駅を設定します")
+    @Permission("advancerailway.railway.manage")
+    suspend fun setToStation(
+        sender: CommandSender,
+        @Argument("railwayId") railwayId: RailwayId,
+        @Argument("stationId") stationId: StationId,
+    ) {
+        val data = RailwayUtils.getRailwayData(railwayId).getOrSend(sender) { "<red>路線が見つかりません。" } ?: return
         data.copy(toStation = stationId).save()
-        sender.sendRichMessage("To station set to $stationId")
-
+        sender.sendRichMessage("<green>終点駅を <white>$stationId</white> に変更しました。")
     }
 }

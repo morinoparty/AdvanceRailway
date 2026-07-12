@@ -32,10 +32,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
-import revxrsal.commands.annotation.Command
-import revxrsal.commands.annotation.Optional
-import revxrsal.commands.annotation.Subcommand
-import revxrsal.commands.bukkit.annotation.CommandPermission
+import org.incendo.cloud.annotations.Argument
+import org.incendo.cloud.annotations.Command
+import org.incendo.cloud.annotations.CommandDescription
+import org.incendo.cloud.annotations.Permission
 
 /**
  * 駅間の最短（所要時間最小）経路を求めて表示するコマンド。
@@ -46,8 +46,7 @@ import revxrsal.commands.bukkit.annotation.CommandPermission
  * 全路線（レール）と、同一ワールド内の徒歩移動を組み合わせた幾何グラフを [RouteFinder] に渡し、
  * A* で最短経路を求める。レールでつながっていない駅どうしや現在地からでも徒歩で到達できる。
  */
-@Command("ar railway", "advancerailway railway")
-@CommandPermission("advancerailway.command.railway.read")
+@Command("ar|advancerailway railway")
 class RailwayRouteCommand {
 
     /**
@@ -57,11 +56,16 @@ class RailwayRouteCommand {
      *
      * 引数が 1 つのときは末尾省略として現在地を起点にする（[second] が null）。
      * 2 つのときは `first` を出発駅、[second] を到着駅として扱う。
-     * revxrsal Lamp 3.x は同名サブコマンドのアリティ多重定義を許さないため、
-     * 末尾 [Optional] 引数 1 つで両形式を受ける。
+     * Cloud では任意引数 `[second]` を末尾に置くことで両形式を 1 メソッドで受ける。
      */
-    @Subcommand("route")
-    suspend fun route(sender: CommandSender, first: StationId, @Optional second: StationId? = null) {
+    @Command("route <first> [second]")
+    @CommandDescription("2 駅間（または現在地から）の最短経路を表示します")
+    @Permission("advancerailway.railway.route")
+    suspend fun route(
+        sender: CommandSender,
+        @Argument("first") first: StationId,
+        @Argument("second") second: StationId?,
+    ) {
         val stationData = loadAllStationData()
         val stations = stationData.map { it.toNode() }
         val stationNames = stationData.associate { it.stationId to it.name }

@@ -10,10 +10,10 @@
 package dev.nikomaru.advancerailway.utils.command
 
 import dev.nikomaru.advancerailway.file.value.RailwayId
-import revxrsal.commands.bukkit.BukkitCommandHandler
+import org.bukkit.command.CommandSender
+import org.incendo.cloud.parser.ParserDescriptor
 
-object RailwayIdParser: IdParser<RailwayId>("railways", RailwayId::class.java, ::RailwayId) {
-    fun BukkitCommandHandler.registerRailwayIdParser() {
-        registerIdParser()
-    }
+object RailwayIdParser : IdParser<CommandSender, RailwayId>("railways", ::RailwayId) {
+    fun railwayIdParser(): ParserDescriptor<CommandSender, RailwayId> =
+        ParserDescriptor.of(this, RailwayId::class.java)
 }

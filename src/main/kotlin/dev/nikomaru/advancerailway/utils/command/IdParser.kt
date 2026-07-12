@@ -10,18 +10,15 @@
 package dev.nikomaru.advancerailway.utils.command
 
 import dev.nikomaru.advancerailway.file.DataPaths
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import org.bukkit.command.CommandSender
-import revxrsal.commands.bukkit.BukkitCommandHandler
-import revxrsal.commands.bukkit.sender
-import revxrsal.commands.command.CommandActor
-import revxrsal.commands.command.ExecutableCommand
-import revxrsal.commands.process.ValueResolver
+import org.incendo.cloud.context.CommandContext
+import org.incendo.cloud.context.CommandInput
+import org.incendo.cloud.parser.ArgumentParseResult
+import org.incendo.cloud.parser.ArgumentParser
+import org.incendo.cloud.suggestion.BlockingSuggestionProvider
 import java.io.File
 
 /** 1 件の実体（ファイル名から得た ID と、任意の表示名）。 */
@@ -75,13 +72,12 @@ object IdIndex {
  * the raw id. When [nameField] is null (e.g. railways, which have no name), suggestions and resolution
  * fall back to ids only.
  */
-abstract class IdParser<T : Any>(
+abstract class IdParser<C, T : Any>(
     private val subfolder: String,
-    private val idType: Class<T>,
     private val idFactory: (String) -> T,
     /** JSON field holding the display name, or null if this entity type has no name. */
     private val nameField: String? = null,
-) : ValueParser<T>() {
+) : ArgumentParser<C, T>, BlockingSuggestionProvider.Strings<C> {
 
     private val folder get() = DataPaths.of(subfolder)
 
@@ -89,7 +85,7 @@ abstract class IdParser<T : Any>(
     @Volatile
     private var cache: Pair<String, List<IdEntry>>? = null
 
-    /** Ensures the backing data folder exists. Call once at startup, never from [suggestions]. */
+    /** Ensures the backing data folder exists. Call once at startup, never from suggestions. */
     fun ensureDataFolder() {
         if (!folder.exists()) {
             folder.mkdirs()
@@ -104,25 +100,22 @@ abstract class IdParser<T : Any>(
         return fresh
     }
 
-    override fun suggestions(args: List<String>, sender: CommandSender, command: ExecutableCommand): Set<String> =
-        runBlocking(Dispatchers.IO) { IdIndex.suggestions(entries()) }
-
-    override fun resolve(context: ValueResolver.ValueResolverContext): T {
-        val token = context.pop()
-        val id = runBlocking(Dispatchers.IO) { IdIndex.resolveId(entries(), token) }
-        return idFactory(id)
+    // parse / suggestions は Cloud の asyncCoordinator・補完スレッド上で呼ばれるため、
+    // ブロッキング IO（フォルダ読み取り）をそのまま行ってよい。
+    override fun parse(
+        commandContext: CommandContext<C & Any>,
+        commandInput: CommandInput,
+    ): ArgumentParseResult<T> {
+        val token = commandInput.readString()
+        val id = IdIndex.resolveId(entries(), token)
+        return runCatching { idFactory(id) }.fold(
+            onSuccess = { ArgumentParseResult.success(it) },
+            onFailure = { ArgumentParseResult.failure(IllegalArgumentException("ID が不正です: $token")) },
+        )
     }
 
-    protected fun BukkitCommandHandler.registerIdParser() {
-        // Note: do NOT call ensureDataFolder() here. This runs from setCommand(), which
-        // executes early during startup; folder access goes through DataPaths, which reads
-        // the lateinit AdvanceRailway.plugin. Data folders are created explicitly later,
-        // after plugin/Koin startup, by AdvanceRailway.onEnableAsync().
-        autoCompleter.registerParameterSuggestions(
-            idType,
-        ) { args: List<String>, sender: CommandActor, command: ExecutableCommand ->
-            suggestions(args, sender.sender, command)
-        }
-        registerValueResolver(idType, this@IdParser)
-    }
+    override fun stringSuggestions(
+        commandContext: CommandContext<C>,
+        input: CommandInput,
+    ): Iterable<String> = IdIndex.suggestions(entries())
 }

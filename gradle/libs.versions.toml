@@ -2,7 +2,10 @@
 paperVersion = "26.1.2.build.72-stable"
 squaremapVersion = "1.3.14"
 mccoroutineVersion = "2.22.0"
-lampVersion = "3.3.6"
+# Incendo Cloud コマンドフレームワーク（MoripaFishing 等 morinoparty 系プラグインと揃える）。
+# cloud-core は安定版、cloud-paper は 2.0.0-SNAPSHOT を使う。
+cloudVersion = "2.0.0"
+cloudPaperVersion = "2.0.0-SNAPSHOT"
 koinVersion = "4.2.2"
 coroutineVersion = "1.11.0"
 serializationVersion = "1.11.0"
@@ -19,8 +22,10 @@ paperTestVersion = "1.21.11-R0.1-SNAPSHOT"
 [libraries]
 paper-api = { group = "io.papermc.paper", name = "paper-api", version.ref = "paperVersion" }
 squaremap-api = { group = "xyz.jpenilla", name = "squaremap-api", version.ref = "squaremapVersion" }
-lamp-common = { group = "com.github.Revxrsal.Lamp", name = "common", version.ref = "lampVersion" }
-lamp-bukkit = { group = "com.github.Revxrsal.Lamp", name = "bukkit", version.ref = "lampVersion" }
+cloud-core ={ group = "org.incendo", name = "cloud-core", version.ref = "cloudVersion" }
+cloud-annotations = { group = "org.incendo", name = "cloud-annotations", version.ref = "cloudVersion" }
+cloud-kotlin-coroutines-annotations = { group = "org.incendo", name = "cloud-kotlin-coroutines-annotations", version.ref = "cloudVersion" }
+cloud-paper = { group = "org.incendo", name = "cloud-paper", version.ref = "cloudPaperVersion" }
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "serializationVersion" }
 kotlinx-serialization-csv = { group = "de.brudaswen.kotlinx.serialization", name = "kotlinx-serialization-csv", version.ref = "csvSerializationVersion" }
 kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "coroutineVersion" }
@@ -47,5 +52,5 @@ detekt = { id = "dev.detekt", version = "2.0.0-alpha.5" }
 spotless = { id = "com.diffplug.spotless", version = "8.8.0" }
 
 [bundles]
-commands = ["lamp-common", "lamp-bukkit"]
+commands-cloud = ["cloud-core", "cloud-paper", "cloud-annotations", "cloud-kotlin-coroutines-annotations"]
 coroutines = ["mccoroutine-bukkit-api", "mccoroutine-bukkit-core", "kotlinx-coroutines-core"]

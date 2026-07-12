@@ -6,24 +6,44 @@ description: AdvanceRailway の全コマンド
 # コマンド一覧
 
 ルートコマンドは `/ar`（別名 `/advancerailway`）です。
+コマンドは [Incendo Cloud](https://cloud.incendo.org/) で実装されています。
+
+## 権限（ロール型）
+
+権限は 3 つのロールに集約されています。
+
+| ロール | ノード | 既定 | 内容 |
+| --- | --- | --- | --- |
+| 閲覧 | `advancerailway.user` | **全員** | すべての閲覧コマンド（info / list / route） |
+| 編集 | `advancerailway.manage` | OP | すべての編集コマンド（add / remove / set …）＋ file / reload |
+| 管理 | `advancerailway.admin` | OP | 上記すべて＋ inspect / debug |
+
+個別のリーフノード: `advancerailway.{station,railway,group}.view`（全員）、
+`advancerailway.railway.route`・`advancerailway.info`（全員）、
+`advancerailway.{station,railway,group}.manage`・`advancerailway.file`・`advancerailway.reload`・
+`advancerailway.inspect`・`advancerailway.debug`（OP）。
+
+:::warning
+以前は `advancerailway.admin` が `default: true` で全ノードの親だったため、**一般プレイヤーにも編集権限が付与**されていました。
+現在は閲覧系のみ全員に公開され、編集・運用系は OP 限定です。
+:::
 
 ## 一般
 
-権限: `advancerailway.command.common`
-
-- `ar info` — プラグインの情報（バージョン・作者・サイト）を表示します。
-- `ar help [page]` — コマンドのヘルプを表示します。
-- `ar inspect` — 見ているレールを解析します（プレイヤー専用）。
-- `ar reload` — マップと設定を再読み込みします。
+- `ar info` — プラグインの情報（バージョン・作者・サイト）を表示します。（全員）
+- `ar help` — コマンドの一覧を表示します。（全員）
+- `ar inspect` — 見ているレールを解析します（プレイヤー専用）。（OP）
+- `ar debug block [distance]` — 見ているブロックの座標を表示します（旧 `ar targetBlock`・デバッグ用）。（OP）
+- `ar reload` — マップと設定を再読み込みします。（OP）
 
 ## 駅
 
-権限: 読み取り `advancerailway.command.station.read` / 変更 `advancerailway.command.station.write`
+閲覧: `advancerailway.station.view`（全員） / 編集: `advancerailway.station.manage`（OP）
 
-- `ar station add <stationId> <name> [point]` — 駅を追加します（座標省略時は現在地）。
-- `ar station remove <stationId>` — 駅を削除します（路線から参照されている場合は不可）。
+- `ar station list [page]` — 駅の一覧をページ表示します。
 - `ar station info <stationId>` — 駅の情報を表示します。
-- `ar station list` — 駅の一覧を表示します。
+- `ar station add <id> <name> [point]` — 駅を追加します（座標省略時は現在地）。
+- `ar station remove <id>` — 駅を削除します（路線から参照されている場合は不可）。
 - `ar station set name <stationId> <name>` — 駅名を変更します。
 - `ar station set location <stationId> [point]` — 駅の座標を変更します。
 - `ar station set numbering <stationId> <numbering>` — 駅ナンバリングを設定します。
@@ -31,39 +51,38 @@ description: AdvanceRailway の全コマンド
 
 ## 路線
 
-権限: 読み取り `advancerailway.command.railway.read` / 変更 `advancerailway.command.railway.write`
+閲覧: `advancerailway.railway.view`（全員） / 経路: `advancerailway.railway.route`（全員） / 編集: `advancerailway.railway.manage`（OP）
 
-- `ar railway add <railwayId> <start> <direction> <end>` — 路線を追加します。
-- `ar railway update <railwayId> <start> <direction> <end>` — 路線の始点・終点を変更します（経路が変わった場合もこちら）。
-- `ar railway remove <railwayId>` — 路線を削除します。
-- `ar railway set line-type <railwayId> <lineType>` — 路線の種別を変更します。
-- `ar railway set group <railwayId> <groupId>` — 路線をグループに追加します。
-- `ar railway unset group <railwayId>` — 路線のグループを外します。
-- `ar railway set from-station <railwayId> <stationId>` — 始点駅を変更します。
-- `ar railway set to-station <railwayId> <stationId>` — 終点駅を変更します。
+- `ar railway list [page]` — 路線の一覧をページ表示します。
 - `ar railway info <railwayId>` — 路線の情報を表示します。
-- `ar railway list` — 路線の一覧を表示します。
 - `ar railway route <from> <to>` — 2 駅間の最短経路（レール＋徒歩、A\* 探索）を表示します。
 - `ar railway route <to>` — 現在地から目的駅までの最短経路を表示します（プレイヤー専用）。
+- `ar railway add <railwayId> <start> <direction> <end>` — 路線を追加します。
+- `ar railway redraw <railwayId> <start> <direction> <end>` — 路線の経路を引き直します（旧 `ar railway update`）。
+- `ar railway remove <railwayId>` — 路線を削除します。
+- `ar railway set line-type <railwayId> <lineType>` — 路線の種別を変更します。
+- `ar railway set group <railwayId> <group>` — 路線をグループに追加します（`none` を渡すと解除。旧 `ar railway unset group`）。
+- `ar railway set from-station <railwayId> <stationId>` — 始点駅を変更します。
+- `ar railway set to-station <railwayId> <stationId>` — 終点駅を変更します。
 
 ## グループ
 
-権限: 読み取り `advancerailway.command.group.read` / 変更 `advancerailway.command.group.write`
+閲覧: `advancerailway.group.view`（全員） / 編集: `advancerailway.group.manage`（OP）
 
-- `ar group add <groupId> <name>` — グループ（路線）を作成します。
-- `ar group remove <groupId>` — グループを削除します（路線から参照されている場合は不可）。
+- `ar group list [page]` — グループの一覧をページ表示します。
 - `ar group info <groupId>` — グループの情報を表示します。
-- `ar group list` — グループの一覧を表示します。
+- `ar group add <id> <name>` — グループ（路線）を作成します。
+- `ar group remove <id>` — グループを削除します（路線から参照されている場合は不可）。
 - `ar group set name <groupId> <name>` — グループ名を変更します。
 - `ar group set color <groupId> <r> <g> <b>` — グループ（路線）の色を変更します。
 
 ## ファイル
 
-権限: `advancerailway.command.file`
+権限: `advancerailway.file`（OP）
 
 - `ar file export <dataType> <fileType>` — データをエクスポートします。詳しくは [ファイル編集](/docs/file) を参照してください。
 - `ar file import <dataType> <fileName>` — データをインポートします（**上書き注意**）。
 
 :::note
-駅・グループを引数に取るコマンドは、ID だけでなく **表示名** でも指定できます（タブ補完では名前が候補に出ます）。
+駅・路線・グループを引数に取るコマンドは、ID だけでなく **表示名** でも指定できます（タブ補完では名前が候補に出ます）。
 :::

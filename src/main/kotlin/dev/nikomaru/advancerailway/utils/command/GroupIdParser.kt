@@ -10,10 +10,10 @@
 package dev.nikomaru.advancerailway.utils.command
 
 import dev.nikomaru.advancerailway.file.value.GroupId
-import revxrsal.commands.bukkit.BukkitCommandHandler
+import org.bukkit.command.CommandSender
+import org.incendo.cloud.parser.ParserDescriptor
 
-object GroupIdParser: IdParser<GroupId>("groups", GroupId::class.java, ::GroupId, nameField = "name") {
-    fun BukkitCommandHandler.registerGroupIdParser() {
-        registerIdParser()
-    }
+object GroupIdParser : IdParser<CommandSender, GroupId>("groups", ::GroupId, nameField = "name") {
+    fun groupIdParser(): ParserDescriptor<CommandSender, GroupId> =
+        ParserDescriptor.of(this, GroupId::class.java)
 }
