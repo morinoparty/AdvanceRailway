@@ -18,20 +18,26 @@ import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import org.bukkit.command.CommandSender
+import org.incendo.cloud.annotations.Argument
+import org.incendo.cloud.annotations.Command
+import org.incendo.cloud.annotations.CommandDescription
+import org.incendo.cloud.annotations.Permission
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import revxrsal.commands.annotation.Command
-import revxrsal.commands.annotation.Subcommand
-import revxrsal.commands.bukkit.annotation.CommandPermission
 
 @OptIn(ExperimentalSerializationApi::class)
-@Command("ar file", "advancerailway file")
-@CommandPermission("advancerailway.command.file")
+@Command("ar|advancerailway file")
 class FileCommand: KoinComponent {
     val plugin: AdvanceRailway by inject()
 
-    @Subcommand("export")
-    fun export(sender: CommandSender, dataType: DataType, fileType: FileType) {
+    @Command("export <dataType> <fileType>")
+    @CommandDescription("指定データを CSV または JSON 形式でエクスポートします")
+    @Permission("advancerailway.file")
+    fun export(
+        sender: CommandSender,
+        @Argument("dataType") dataType: DataType,
+        @Argument("fileType") fileType: FileType,
+    ) {
         val stringFormat = when (fileType) {
             FileType.CSV -> csv
             FileType.JSON -> json
@@ -64,8 +70,14 @@ class FileCommand: KoinComponent {
         sender.sendMessage("Exported to export-${uuid}.$extension")
     }
 
-    @Subcommand("import")
-    fun import(sender: CommandSender, dataType: DataType, fileName: String) {
+    @Command("import <dataType> <fileName>")
+    @CommandDescription("指定ファイルからデータをインポートします")
+    @Permission("advancerailway.file")
+    fun import(
+        sender: CommandSender,
+        @Argument("dataType") dataType: DataType,
+        @Argument("fileName") fileName: String,
+    ) {
         val importFile = DataPaths.import.resolve(fileName)
         if (!importFile.exists()) {
             sender.sendRichMessage("Error: Import file not found: $fileName")

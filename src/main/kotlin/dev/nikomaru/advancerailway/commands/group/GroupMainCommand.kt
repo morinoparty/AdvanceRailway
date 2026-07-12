@@ -9,7 +9,6 @@
 
 package dev.nikomaru.advancerailway.commands.group
 
-import dev.nikomaru.advancerailway.AdvanceRailway
 import dev.nikomaru.advancerailway.file.DataPaths
 import dev.nikomaru.advancerailway.file.FileLoader
 import dev.nikomaru.advancerailway.file.data.GroupData
@@ -19,20 +18,19 @@ import dev.nikomaru.advancerailway.file.value.IdValidation
 import dev.nikomaru.advancerailway.utils.Utils.json
 import kotlinx.serialization.decodeFromString
 import org.bukkit.command.CommandSender
-import org.koin.core.component.KoinComponent
-import org.koin.core.component.inject
-import revxrsal.commands.annotation.Command
-import revxrsal.commands.annotation.Subcommand
-import revxrsal.commands.bukkit.annotation.CommandPermission
+import org.incendo.cloud.annotations.Argument
+import org.incendo.cloud.annotations.Command
+import org.incendo.cloud.annotations.CommandDescription
+import org.incendo.cloud.annotations.Permission
 import java.awt.Color
 
-@Command("ar group", "advancerailway group")
-@CommandPermission("advancerailway.command.group.write")
-class GroupMainCommand: KoinComponent {
-    val plugin: AdvanceRailway by inject()
+@Command("ar|advancerailway group")
+class GroupMainCommand {
 
-    @Subcommand("add")
-    fun add(sender: CommandSender, id: String, name: String) {
+    @Command("add <id> <name>")
+    @CommandDescription("グループを新規登録します")
+    @Permission("advancerailway.group.manage")
+    fun add(sender: CommandSender, @Argument("id") id: String, @Argument("name") name: String) {
         if (!IdValidation.isValid(id)) {
             sender.sendRichMessage("Error: Invalid group ID \"$id\"")
             return
@@ -43,8 +41,10 @@ class GroupMainCommand: KoinComponent {
         sender.sendRichMessage("Group added")
     }
 
-    @Subcommand("remove")
-    suspend fun remove(sender: CommandSender, id: GroupId) {
+    @Command("remove <id>")
+    @CommandDescription("グループを削除します（依存路線があれば拒否します）")
+    @Permission("advancerailway.group.manage")
+    suspend fun remove(sender: CommandSender, @Argument("id") id: GroupId) {
         val file = DataPaths.groups.resolve("${id.value}.json")
         if (!file.exists()) {
             sender.sendRichMessage("Group not found")

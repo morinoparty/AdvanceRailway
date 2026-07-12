@@ -9,47 +9,60 @@
 
 package dev.nikomaru.advancerailway.commands.station
 
-import dev.nikomaru.advancerailway.AdvanceRailway
-import dev.nikomaru.advancerailway.file.DataPaths
 import dev.nikomaru.advancerailway.commands.getOrSend
+import dev.nikomaru.advancerailway.commands.sendPaginated
+import dev.nikomaru.advancerailway.file.DataPaths
+import dev.nikomaru.advancerailway.file.value.IdValidation
 import dev.nikomaru.advancerailway.file.value.StationId
 import dev.nikomaru.advancerailway.utils.StationUtils
 import org.bukkit.command.CommandSender
-import org.koin.core.component.KoinComponent
-import org.koin.core.component.inject
-import revxrsal.commands.annotation.Command
-import revxrsal.commands.annotation.Subcommand
-import revxrsal.commands.bukkit.annotation.CommandPermission
+import org.incendo.cloud.annotations.Argument
+import org.incendo.cloud.annotations.Command
+import org.incendo.cloud.annotations.CommandDescription
+import org.incendo.cloud.annotations.Default
+import org.incendo.cloud.annotations.Permission
 
-@Command("ar station", "advancerailway station")
-@CommandPermission("advancerailway.command.station.read")
-class StationInfoCommand: KoinComponent {
-    val plugin: AdvanceRailway by inject()
+/** 駅の閲覧コマンド（`/ar station info|list`）。全員が実行できる（`advancerailway.station.view`）。 */
+@Command("ar|advancerailway station")
+class StationInfoCommand {
 
-    @Subcommand("info")
-    suspend fun info(sender: CommandSender, stationId: StationId) {
-        val data = StationUtils.getStationData(stationId).getOrSend(sender) { "Station not found" } ?: return
-        sender.sendRichMessage("Station ID: ${data.stationId.value}")
-        sender.sendRichMessage("Station Name: ${data.name} <click:suggest_command:'/ar station rename ${data.stationId.value} <newName>'>[edit]</click>")
-        sender.sendRichMessage("Station Location: ${data.world.name}:${data.point} <click:suggest_command:'/ar station set location ${data.stationId.value} <newName>'>[edit]</click>")
-        sender.sendRichMessage("Station numbering: ${data.numbering} <click:suggest_command:'/ar station set numbering ${data.stationId.value} <newName>'>[edit]</click>")
-
+    @Command("info <stationId>")
+    @CommandDescription("駅の詳細（名前・座標・ナンバリング）を表示します")
+    @Permission("advancerailway.station.view")
+    suspend fun info(sender: CommandSender, @Argument("stationId") stationId: StationId) {
+        val data = StationUtils.getStationData(stationId).getOrSend(sender) { "<red>駅が見つかりません" } ?: return
+        val id = data.stationId.value
+        sender.sendRichMessage("<gray>=== <aqua>駅: ${data.name}</aqua> <gray>(<white>$id</white>) ===")
+        sender.sendRichMessage(
+            "<yellow>名前: <white>${data.name} " +
+                "<click:suggest_command:'/ar station set name $id <newName>'><dark_gray>[変更]</dark_gray></click>"
+        )
+        sender.sendRichMessage(
+            "<yellow>座標: <white>${data.world.name}:${data.point} " +
+                "<click:suggest_command:'/ar station set location $id'><dark_gray>[変更]</dark_gray></click>"
+        )
+        sender.sendRichMessage(
+            "<yellow>ナンバリング: <white>${data.numbering} " +
+                "<click:suggest_command:'/ar station set numbering $id <numbering>'><dark_gray>[変更]</dark_gray></click>"
+        )
     }
 
-    @Subcommand("list")
-    fun list(sender: CommandSender) {
-        val list =
-            DataPaths.stations.listFiles()?.map { it.nameWithoutExtension } ?: run {
-                sender.sendRichMessage("No station found")
-                return
-            }
-        if (list.isEmpty()) {
-            sender.sendRichMessage("No station found")
-            return
-        }
-        sender.sendRichMessage("Station List: <yellow>Click for details")
-        list.forEach {
-            sender.sendRichMessage("<click:run_command:/ar station info $it>$it</click>")
-        }
+    @Command("list [page]")
+    @CommandDescription("登録されている駅の一覧をページ表示します")
+    @Permission("advancerailway.station.view")
+    fun list(sender: CommandSender, @Argument("page") @Default("1") page: Int) {
+        val list = DataPaths.stations.listFiles()
+            ?.filter { it.isFile && it.extension == "json" }
+            ?.map { it.nameWithoutExtension }
+            ?.filter { IdValidation.isValid(it) }
+            ?.sorted()
+            ?: emptyList()
+        sender.sendPaginated(
+            items = list,
+            page = page,
+            header = "<yellow>駅一覧 <gray>（クリックで詳細）",
+            empty = "<gray>駅が登録されていません。",
+            pageCommand = "/ar station list",
+        ) { "<click:run_command:/ar station info $it><white>$it</white></click>" }
     }
 }

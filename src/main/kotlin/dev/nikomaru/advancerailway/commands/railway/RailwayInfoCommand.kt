@@ -9,46 +9,50 @@
 
 package dev.nikomaru.advancerailway.commands.railway
 
-import dev.nikomaru.advancerailway.AdvanceRailway
-import dev.nikomaru.advancerailway.file.DataPaths
 import dev.nikomaru.advancerailway.commands.getOrSend
+import dev.nikomaru.advancerailway.commands.sendPaginated
+import dev.nikomaru.advancerailway.file.DataPaths
+import dev.nikomaru.advancerailway.file.value.IdValidation
 import dev.nikomaru.advancerailway.file.value.RailwayId
 import dev.nikomaru.advancerailway.utils.RailwayUtils
 import org.bukkit.command.CommandSender
-import org.koin.core.component.KoinComponent
-import org.koin.core.component.inject
-import revxrsal.commands.annotation.Command
-import revxrsal.commands.annotation.Subcommand
-import revxrsal.commands.bukkit.annotation.CommandPermission
+import org.incendo.cloud.annotations.Argument
+import org.incendo.cloud.annotations.Command
+import org.incendo.cloud.annotations.CommandDescription
+import org.incendo.cloud.annotations.Default
+import org.incendo.cloud.annotations.Permission
 import kotlin.math.ceil
 
-@Command("ar railway", "advancerailway railway")
-@CommandPermission("advancerailway.command.railway.read")
-class RailwayInfoCommand: KoinComponent {
-    val plugin: AdvanceRailway by inject()
+/** 路線の閲覧コマンド（`/ar railway info|list`）。全員が実行できる（`advancerailway.railway.view`）。 */
+@Command("ar|advancerailway railway")
+class RailwayInfoCommand {
 
-    @Subcommand("info")
-    suspend fun info(sender: CommandSender, railwayId: RailwayId) {
+    @Command("info <railwayId>")
+    @CommandDescription("路線の詳細（駅間・所要時間）を表示します")
+    @Permission("advancerailway.railway.view")
+    suspend fun info(sender: CommandSender, @Argument("railwayId") railwayId: RailwayId) {
         val data = RailwayUtils.getRailwayData(railwayId).getOrSend(sender) { "Railway not found" } ?: return
         sender.sendRichMessage("Railway ID: ${data.id.value}")
         sender.sendRichMessage("Railway Stations: ${data.toStation} -> ${data.fromStation}")
         sender.sendRichMessage("Railway Length: ${ceil(data.timeRequired / 6.0) / 10} minutes")
     }
 
-    @Subcommand("list")
-    fun list(sender: CommandSender) {
-        val list = DataPaths.railways.listFiles()?.map { it.nameWithoutExtension }
-            ?: run {
-                sender.sendRichMessage("No railway found")
-                return
-            }
-        if (list.isEmpty()) {
-            sender.sendRichMessage("No railway found")
-            return
-        }
-        sender.sendRichMessage("Railway List: <yellow>Click for details")
-        list.forEach {
-            sender.sendRichMessage("<click:run_command:/ar railway info $it>$it</click>")
-        }
+    @Command("list [page]")
+    @CommandDescription("登録されている路線の一覧をページ表示します")
+    @Permission("advancerailway.railway.view")
+    fun list(sender: CommandSender, @Argument("page") @Default("1") page: Int) {
+        val list = DataPaths.railways.listFiles()
+            ?.filter { it.isFile && it.extension == "json" }
+            ?.map { it.nameWithoutExtension }
+            ?.filter { IdValidation.isValid(it) }
+            ?.sorted()
+            ?: emptyList()
+        sender.sendPaginated(
+            items = list,
+            page = page,
+            header = "<yellow>路線一覧 <gray>（クリックで詳細）",
+            empty = "<gray>路線が登録されていません。",
+            pageCommand = "/ar railway list",
+        ) { "<click:run_command:/ar railway info $it><white>$it</white></click>" }
     }
 }

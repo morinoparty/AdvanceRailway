@@ -10,7 +10,6 @@
 package dev.nikomaru.advancerailway.commands.railway
 
 
-import dev.nikomaru.advancerailway.AdvanceRailway
 import dev.nikomaru.advancerailway.Point3D
 import dev.nikomaru.advancerailway.file.DataPaths
 import dev.nikomaru.advancerailway.file.FileLoader
@@ -23,20 +22,23 @@ import dev.nikomaru.advancerailway.utils.StationUtils
 import org.bukkit.Bukkit
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
-import org.koin.core.component.KoinComponent
-import org.koin.core.component.inject
-import revxrsal.commands.annotation.Command
-import revxrsal.commands.annotation.Subcommand
-import revxrsal.commands.bukkit.annotation.CommandPermission
+import org.incendo.cloud.annotations.Argument
+import org.incendo.cloud.annotations.Command
+import org.incendo.cloud.annotations.CommandDescription
+import org.incendo.cloud.annotations.Permission
 
-@Command("advancerailway railway", "ar railway")
-@CommandPermission("advancerailway.command.railway.write")
-class RailwayMainCommand: KoinComponent {
-    val plugin: AdvanceRailway by inject()
+@Command("ar|advancerailway railway")
+class RailwayMainCommand {
 
-    @Subcommand("add")
+    @Command("add <railwayId> <startPoint> <directionPoint> <endPoint>")
+    @CommandDescription("駅間の経路を計算して新しい路線を登録します")
+    @Permission("advancerailway.railway.manage")
     suspend fun register(
-        sender: CommandSender, railwayId: String, startPoint: Point3D, directionPoint: Point3D, endPoint: Point3D
+        sender: CommandSender,
+        @Argument("railwayId") railwayId: String,
+        @Argument("startPoint") startPoint: Point3D,
+        @Argument("directionPoint") directionPoint: Point3D,
+        @Argument("endPoint") endPoint: Point3D
     ) {
         if (!IdValidation.isValid(railwayId)) {
             sender.sendRichMessage("Error: Invalid railway ID \"$railwayId\"")
@@ -46,9 +48,15 @@ class RailwayMainCommand: KoinComponent {
         handleRailway(sender, railwayId, startPoint, directionPoint, endPoint, "Registered")
     }
 
-    @Subcommand("update")
-    suspend fun update(
-        sender: CommandSender, railwayId: String, startPoint: Point3D, directionPoint: Point3D, endPoint: Point3D
+    @Command("redraw <railwayId> <startPoint> <directionPoint> <endPoint>")
+    @CommandDescription("路線の経路を引き直します")
+    @Permission("advancerailway.railway.manage")
+    suspend fun redraw(
+        sender: CommandSender,
+        @Argument("railwayId") railwayId: String,
+        @Argument("startPoint") startPoint: Point3D,
+        @Argument("directionPoint") directionPoint: Point3D,
+        @Argument("endPoint") endPoint: Point3D
     ) {
         if (!IdValidation.isValid(railwayId)) {
             sender.sendRichMessage("Error: Invalid railway ID \"$railwayId\"")
@@ -95,8 +103,10 @@ class RailwayMainCommand: KoinComponent {
         sender.sendRichMessage("$action railway: $railwayId")
     }
 
-    @Subcommand("remove")
-    suspend fun remove(sender: CommandSender, railwayId: RailwayId) {
+    @Command("remove <railwayId>")
+    @CommandDescription("指定した路線を削除します")
+    @Permission("advancerailway.railway.manage")
+    suspend fun remove(sender: CommandSender, @Argument("railwayId") railwayId: RailwayId) {
         val file = DataPaths.railways.resolve("$railwayId.json")
         if (!file.exists()) {
             sender.sendRichMessage("Error: Railway not found")

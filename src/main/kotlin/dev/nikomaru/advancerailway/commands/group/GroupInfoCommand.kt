@@ -9,45 +9,39 @@
 
 package dev.nikomaru.advancerailway.commands.group
 
-import dev.nikomaru.advancerailway.AdvanceRailway
-import dev.nikomaru.advancerailway.file.DataPaths
 import dev.nikomaru.advancerailway.commands.getOrSend
+import dev.nikomaru.advancerailway.commands.sendPaginated
+import dev.nikomaru.advancerailway.file.DataPaths
 import dev.nikomaru.advancerailway.file.value.GroupId
 import dev.nikomaru.advancerailway.utils.GroupUtils
 import org.bukkit.command.CommandSender
-import org.koin.core.component.KoinComponent
-import org.koin.core.component.inject
-import revxrsal.commands.annotation.Command
-import revxrsal.commands.annotation.Subcommand
-import revxrsal.commands.bukkit.annotation.CommandPermission
+import org.incendo.cloud.annotations.Argument
+import org.incendo.cloud.annotations.Command
+import org.incendo.cloud.annotations.CommandDescription
+import org.incendo.cloud.annotations.Default
+import org.incendo.cloud.annotations.Permission
 
-@Command("ar group", "advancerailway group")
-@CommandPermission("advancerailway.command.group.read")
-class GroupInfoCommand: KoinComponent {
-    val plugin: AdvanceRailway by inject()
+@Command("ar|advancerailway group")
+class GroupInfoCommand {
 
-    @Subcommand("info")
-    suspend fun info(sender: CommandSender, groupId: GroupId) {
+    @Command("info <groupId>")
+    @CommandDescription("グループの詳細（ID・表示名・路線カラー）を表示します")
+    @Permission("advancerailway.group.view")
+    suspend fun info(sender: CommandSender, @Argument("groupId") groupId: GroupId) {
         val data = GroupUtils.getGroupData(groupId).getOrSend(sender) { "Group not found" } ?: return
         sender.sendRichMessage("Group Info: <yellow>${data.groupId.value}")
         sender.sendRichMessage("<yellow>Display Name: <reset>${data.name}")
         sender.sendRichMessage("<yellow>Color: <reset>${data.railwayColor}")
     }
 
-    @Subcommand("list")
-    fun list(sender: CommandSender) {
-        val list =
-            DataPaths.groups.listFiles()?.map { it.nameWithoutExtension } ?: run {
-                sender.sendRichMessage("No group found")
-                return
-            }
-        if (list.isEmpty()) {
-            sender.sendRichMessage("No group found")
-            return
-        }
-        sender.sendRichMessage("Group List: <yellow>Click for details")
-        list.forEach {
-            sender.sendRichMessage("<click:run_command:/ar group info $it>$it</click>")
-        }
+    @Command("list [page]")
+    @CommandDescription("登録されているグループの一覧をページ表示します")
+    @Permission("advancerailway.group.view")
+    fun list(sender: CommandSender, @Argument("page") @Default("1") page: Int) {
+        val list = DataPaths.groups.listFiles()?.filter { it.isFile && it.extension == "json" }
+            ?.map { it.nameWithoutExtension }?.sorted() ?: emptyList()
+        sender.sendPaginated(items = list, page = page, header = "<yellow>グループ一覧 <gray>（クリックで詳細）",
+            empty = "<gray>グループが登録されていません。", pageCommand = "/ar group list") {
+            "<click:run_command:/ar group info $it><white>$it</white></click>" }
     }
 }

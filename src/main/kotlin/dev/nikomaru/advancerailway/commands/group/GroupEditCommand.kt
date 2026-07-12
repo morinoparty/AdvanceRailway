@@ -13,23 +13,27 @@ import dev.nikomaru.advancerailway.commands.getOrSend
 import dev.nikomaru.advancerailway.file.value.GroupId
 import dev.nikomaru.advancerailway.utils.GroupUtils
 import org.bukkit.command.CommandSender
-import revxrsal.commands.annotation.Command
-import revxrsal.commands.annotation.Subcommand
-import revxrsal.commands.bukkit.annotation.CommandPermission
+import org.incendo.cloud.annotations.Argument
+import org.incendo.cloud.annotations.Command
+import org.incendo.cloud.annotations.CommandDescription
+import org.incendo.cloud.annotations.Permission
 import java.awt.Color
 
-@Command("ar group", "advancerailway group")
-@CommandPermission("advancerailway.command.group.write")
+@Command("ar|advancerailway group")
 class GroupEditCommand {
-    @Subcommand("set name")
-    suspend fun setName(sender: CommandSender, groupId: GroupId, newName: String) {
+    @Command("set name <groupId> <newName>")
+    @CommandDescription("グループの名前を設定します")
+    @Permission("advancerailway.group.manage")
+    suspend fun setName(sender: CommandSender, @Argument("groupId") groupId: GroupId, @Argument("newName") newName: String) {
         val data = GroupUtils.getGroupData(groupId).getOrSend(sender) { "Group not found" } ?: return
         data.copy(name = newName).save()
         sender.sendRichMessage("Station name set")
     }
 
-    @Subcommand("set color")
-    suspend fun setColor(sender: CommandSender, groupId: GroupId, r: Int, g: Int, b: Int) {
+    @Command("set color <groupId> <r> <g> <b>")
+    @CommandDescription("グループの路線カラーをRGB値で設定します")
+    @Permission("advancerailway.group.manage")
+    suspend fun setColor(sender: CommandSender, @Argument("groupId") groupId: GroupId, @Argument("r") r: Int, @Argument("g") g: Int, @Argument("b") b: Int) {
         if (r !in 0..255 || g !in 0..255 || b !in 0..255) {
             sender.sendRichMessage("Error: RGB values must each be between 0 and 255")
             return

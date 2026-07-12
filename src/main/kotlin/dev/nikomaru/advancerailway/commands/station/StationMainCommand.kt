@@ -9,7 +9,6 @@
 
 package dev.nikomaru.advancerailway.commands.station
 
-import dev.nikomaru.advancerailway.AdvanceRailway
 import dev.nikomaru.advancerailway.Point3D
 import dev.nikomaru.advancerailway.file.DataPaths
 import dev.nikomaru.advancerailway.file.FileLoader
@@ -23,23 +22,24 @@ import kotlinx.serialization.decodeFromString
 import org.bukkit.Bukkit
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
-import org.koin.core.component.KoinComponent
-import org.koin.core.component.inject
-import revxrsal.commands.annotation.Command
-import revxrsal.commands.annotation.Optional
-import revxrsal.commands.annotation.Subcommand
-import revxrsal.commands.bukkit.annotation.CommandPermission
+import org.incendo.cloud.annotations.Argument
+import org.incendo.cloud.annotations.Command
+import org.incendo.cloud.annotations.CommandDescription
+import org.incendo.cloud.annotations.Permission
 
-@Command("ar station", "advancerailway station")
-@CommandPermission("advancerailway.command.station.write")
-class StationMainCommand: KoinComponent {
-    val plugin: AdvanceRailway by inject()
+@Command("ar|advancerailway station")
+class StationMainCommand {
 
-    @Subcommand("add")
+    @Command("add <id> <name> [point]")
+    @CommandDescription("駅を新規登録します（座標省略時は実行者の現在地）")
+    @Permission("advancerailway.station.manage")
     suspend fun add(
-        sender: CommandSender, id: String, name: String, @Optional inputPoint: Point3D? = null
+        sender: CommandSender,
+        @Argument("id") id: String,
+        @Argument("name") name: String,
+        @Argument("point") point: Point3D?,
     ) { // Add station
-        if (sender !is Player && inputPoint == null) {
+        if (sender !is Player && point == null) {
             sender.sendRichMessage("Error: You must enter the point")
             return
         }
@@ -47,7 +47,7 @@ class StationMainCommand: KoinComponent {
             sender.sendRichMessage("Error: Invalid station ID \"$id\"")
             return
         }
-        val point = inputPoint ?: (sender as Player).location.toPoint3D()
+        val resolvedPoint = point ?: (sender as Player).location.toPoint3D()
         val world = if (sender is Player) {
             sender.world
         } else {
@@ -57,13 +57,15 @@ class StationMainCommand: KoinComponent {
             }
         }
         val stationId = StationId(id)
-        val data = StationData(stationId, name, null, world, point, null)
+        val data = StationData(stationId, name, null, world, resolvedPoint, null)
         data.save()
         sender.sendRichMessage("Station added")
     }
 
-    @Subcommand("remove")
-    suspend fun remove(sender: CommandSender, id: StationId) { // Remove station
+    @Command("remove <id>")
+    @CommandDescription("駅を削除します（依存する路線がある場合は削除できません）")
+    @Permission("advancerailway.station.manage")
+    suspend fun remove(sender: CommandSender, @Argument("id") id: StationId) { // Remove station
         val file = DataPaths.stations.resolve("${id.value}.json")
         if (!file.exists()) {
             sender.sendRichMessage("Station not found")
