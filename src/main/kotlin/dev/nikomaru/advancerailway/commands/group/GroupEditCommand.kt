@@ -25,9 +25,9 @@ class GroupEditCommand {
     @CommandDescription("グループの名前を設定します")
     @Permission("advancerailway.group.manage")
     suspend fun setName(sender: CommandSender, @Argument("groupId") groupId: GroupId, @Argument("newName") newName: String) {
-        val data = GroupUtils.getGroupData(groupId).getOrSend(sender) { "Group not found" } ?: return
+        val data = GroupUtils.getGroupData(groupId).getOrSend(sender) { "<red>グループが見つかりません。" } ?: return
         data.copy(name = newName).save()
-        sender.sendRichMessage("Station name set")
+        sender.sendRichMessage("<green>グループ名を変更しました。")
     }
 
     @Command("set color <groupId> <r> <g> <b>")
@@ -35,13 +35,13 @@ class GroupEditCommand {
     @Permission("advancerailway.group.manage")
     suspend fun setColor(sender: CommandSender, @Argument("groupId") groupId: GroupId, @Argument("r") r: Int, @Argument("g") g: Int, @Argument("b") b: Int) {
         if (r !in 0..255 || g !in 0..255 || b !in 0..255) {
-            sender.sendRichMessage("Error: RGB values must each be between 0 and 255")
+            sender.sendRichMessage("<red>RGB は各 0〜255 で指定してください。")
             return
         }
-        val data = GroupUtils.getGroupData(groupId).getOrSend(sender) { "Group not found" } ?: return
+        val data = GroupUtils.getGroupData(groupId).getOrSend(sender) { "<red>グループが見つかりません。" } ?: return
         val color = Color(r, g, b)
         data.copy(railwayColor = color).save()
-        sender.sendRichMessage("group color set")
+        sender.sendRichMessage("<green>グループの色を変更しました。")
     }
 
 }

@@ -40,11 +40,11 @@ class StationMainCommand {
         @Argument("point") point: Point3D?,
     ) { // Add station
         if (sender !is Player && point == null) {
-            sender.sendRichMessage("Error: You must enter the point")
+            sender.sendRichMessage("<red>座標を指定してください（プレイヤー以外は必須です）。")
             return
         }
         if (!IdValidation.isValid(id)) {
-            sender.sendRichMessage("Error: Invalid station ID \"$id\"")
+            sender.sendRichMessage("<red>駅 ID が不正です: <white>$id</white>")
             return
         }
         val resolvedPoint = point ?: (sender as Player).location.toPoint3D()
@@ -52,14 +52,14 @@ class StationMainCommand {
             sender.world
         } else {
             Bukkit.getWorld("world") ?: run {
-                sender.sendRichMessage("Error: World \"world\" not found")
+                sender.sendRichMessage("<red>ワールド \"world\" が見つかりません。")
                 return
             }
         }
         val stationId = StationId(id)
         val data = StationData(stationId, name, null, world, resolvedPoint, null)
         data.save()
-        sender.sendRichMessage("Station added")
+        sender.sendRichMessage("<green>駅を追加しました。")
     }
 
     @Command("remove <id>")
@@ -68,7 +68,7 @@ class StationMainCommand {
     suspend fun remove(sender: CommandSender, @Argument("id") id: StationId) { // Remove station
         val file = DataPaths.stations.resolve("${id.value}.json")
         if (!file.exists()) {
-            sender.sendRichMessage("Station not found")
+            sender.sendRichMessage("<red>駅が見つかりません。")
             return
         }
         val dependents = (DataPaths.railways.listFiles() ?: emptyArray()).mapNotNull { railwayFile ->
@@ -76,14 +76,14 @@ class StationMainCommand {
         }.filter { it.fromStation == id || it.toStation == id }.map { it.id.value }
         if (dependents.isNotEmpty()) {
             sender.sendRichMessage(
-                "Error: Cannot remove station <yellow>${id.value}</yellow>; " +
-                    "referenced by railway(s): ${dependents.joinToString(", ")}"
+                "<red>駅 <yellow>${id.value}</yellow> は削除できません。" +
+                    "次の路線が参照しています: <white>${dependents.joinToString(", ")}</white>"
             )
             return
         }
         file.delete()
         FileLoader.mapDataLoad()
-        sender.sendRichMessage("Station removed")
+        sender.sendRichMessage("<green>駅を削除しました。")
     }
 
 }

@@ -32,13 +32,13 @@ class GroupMainCommand {
     @Permission("advancerailway.group.manage")
     fun add(sender: CommandSender, @Argument("id") id: String, @Argument("name") name: String) {
         if (!IdValidation.isValid(id)) {
-            sender.sendRichMessage("Error: Invalid group ID \"$id\"")
+            sender.sendRichMessage("<red>グループ ID が不正です: <white>$id</white>")
             return
         }
         val groupId = GroupId(id)
         val data = GroupData(groupId, name, Color.getHSBColor(Math.random().toFloat(), 1.0f, 1.0f))
         data.save()
-        sender.sendRichMessage("Group added")
+        sender.sendRichMessage("<green>グループを追加しました。")
     }
 
     @Command("remove <id>")
@@ -47,7 +47,7 @@ class GroupMainCommand {
     suspend fun remove(sender: CommandSender, @Argument("id") id: GroupId) {
         val file = DataPaths.groups.resolve("${id.value}.json")
         if (!file.exists()) {
-            sender.sendRichMessage("Group not found")
+            sender.sendRichMessage("<red>グループが見つかりません。")
             return
         }
         val dependents = (DataPaths.railways.listFiles() ?: emptyArray()).mapNotNull { railwayFile ->
@@ -55,14 +55,14 @@ class GroupMainCommand {
         }.filter { it.group == id }.map { it.id.value }
         if (dependents.isNotEmpty()) {
             sender.sendRichMessage(
-                "Error: Cannot remove group <yellow>${id.value}</yellow>; " +
-                    "referenced by railway(s): ${dependents.joinToString(", ")}"
+                "<red>グループ <yellow>${id.value}</yellow> は削除できません。" +
+                    "次の路線が参照しています: <white>${dependents.joinToString(", ")}</white>"
             )
             return
         }
         file.delete()
         FileLoader.mapDataLoad()
-        sender.sendRichMessage("Group removed")
+        sender.sendRichMessage("<green>グループを削除しました。")
     }
 
 }

@@ -33,9 +33,9 @@ class RailwayEditCommand {
         @Argument("railwayId") railwayId: RailwayId,
         @Argument("lineType") lineType: LineType,
     ) {
-        val data = RailwayUtils.getRailwayData(railwayId).getOrSend(sender) { "Railway not found" } ?: return
+        val data = RailwayUtils.getRailwayData(railwayId).getOrSend(sender) { "<red>路線が見つかりません。" } ?: return
         data.copy(lineType = lineType).save()
-        sender.sendRichMessage("Line type set to $lineType")
+        sender.sendRichMessage("<green>種別を <white>$lineType</white> に変更しました。")
     }
 
     @Command("set group <railwayId> <group>")
@@ -46,18 +46,18 @@ class RailwayEditCommand {
         @Argument("railwayId") railwayId: RailwayId,
         @Argument("group") group: String,
     ) {
-        val data = RailwayUtils.getRailwayData(railwayId).getOrSend(sender) { "Railway not found" } ?: return
+        val data = RailwayUtils.getRailwayData(railwayId).getOrSend(sender) { "<red>路線が見つかりません。" } ?: return
         if (group.equals("none", ignoreCase = true)) {
             data.copy(group = null).save()
-            sender.sendRichMessage("Group unset")
+            sender.sendRichMessage("<green>グループを解除しました。")
             return
         }
         if (!IdValidation.isValid(group)) {
-            sender.sendRichMessage("Error: Invalid group ID \"$group\"")
+            sender.sendRichMessage("<red>グループ ID が不正です: <white>$group</white>")
             return
         }
         data.copy(group = GroupId(group)).save()
-        sender.sendRichMessage("Group set to $group")
+        sender.sendRichMessage("<green>グループを <white>$group</white> に設定しました。")
     }
 
     @Command("set from-station <railwayId> <stationId>")
@@ -68,9 +68,9 @@ class RailwayEditCommand {
         @Argument("railwayId") railwayId: RailwayId,
         @Argument("stationId") stationId: StationId,
     ) {
-        val data = RailwayUtils.getRailwayData(railwayId).getOrSend(sender) { "Railway not found" } ?: return
+        val data = RailwayUtils.getRailwayData(railwayId).getOrSend(sender) { "<red>路線が見つかりません。" } ?: return
         data.copy(fromStation = stationId).save()
-        sender.sendRichMessage("From station set to $stationId")
+        sender.sendRichMessage("<green>始点駅を <white>$stationId</white> に変更しました。")
     }
 
     @Command("set to-station <railwayId> <stationId>")
@@ -81,8 +81,8 @@ class RailwayEditCommand {
         @Argument("railwayId") railwayId: RailwayId,
         @Argument("stationId") stationId: StationId,
     ) {
-        val data = RailwayUtils.getRailwayData(railwayId).getOrSend(sender) { "Railway not found" } ?: return
+        val data = RailwayUtils.getRailwayData(railwayId).getOrSend(sender) { "<red>路線が見つかりません。" } ?: return
         data.copy(toStation = stationId).save()
-        sender.sendRichMessage("To station set to $stationId")
+        sender.sendRichMessage("<green>終点駅を <white>$stationId</white> に変更しました。")
     }
 }

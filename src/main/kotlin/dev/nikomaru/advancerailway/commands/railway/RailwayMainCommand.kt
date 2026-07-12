@@ -41,11 +41,11 @@ class RailwayMainCommand {
         @Argument("endPoint") endPoint: Point3D
     ) {
         if (!IdValidation.isValid(railwayId)) {
-            sender.sendRichMessage("Error: Invalid railway ID \"$railwayId\"")
+            sender.sendRichMessage("<red>路線 ID が不正です: <white>$railwayId</white>")
             return
         }
-        sender.sendRichMessage("Registering railway...")
-        handleRailway(sender, railwayId, startPoint, directionPoint, endPoint, "Registered")
+        sender.sendRichMessage("<gray>路線を登録しています…")
+        handleRailway(sender, railwayId, startPoint, directionPoint, endPoint, "登録")
     }
 
     @Command("redraw <railwayId> <startPoint> <directionPoint> <endPoint>")
@@ -59,11 +59,11 @@ class RailwayMainCommand {
         @Argument("endPoint") endPoint: Point3D
     ) {
         if (!IdValidation.isValid(railwayId)) {
-            sender.sendRichMessage("Error: Invalid railway ID \"$railwayId\"")
+            sender.sendRichMessage("<red>路線 ID が不正です: <white>$railwayId</white>")
             return
         }
-        sender.sendRichMessage("Updating railway...")
-        handleRailway(sender, railwayId, startPoint, directionPoint, endPoint, "Updated")
+        sender.sendRichMessage("<gray>路線の経路を引き直しています…")
+        handleRailway(sender, railwayId, startPoint, directionPoint, endPoint, "引き直し")
     }
 
     private suspend fun handleRailway(
@@ -75,16 +75,16 @@ class RailwayMainCommand {
         action: String
     ) {
         val line = RailwayUtils.getLine(startPoint, directionPoint, endPoint).getOrNull() ?: run {
-            sender.sendRichMessage("Error: Failed to get line")
+            sender.sendRichMessage("<red>レール経路の取得に失敗しました。")
             return
         }
         val world = if (sender is Player) sender.world else Bukkit.getWorlds().first()
         val fromStation = StationUtils.nearStation(startPoint.toLocation(world)).getOrNull() ?: run {
-            sender.sendRichMessage("Error: Failed to find start station")
+            sender.sendRichMessage("<red>始点付近の駅が見つかりません。")
             return
         }
         val toStation = StationUtils.nearStation(endPoint.toLocation(world)).getOrNull() ?: run {
-            sender.sendRichMessage("Error: Failed to find end station")
+            sender.sendRichMessage("<red>終点付近の駅が見つかりません。")
             return
         }
         val railwayData = RailwayData(
@@ -100,7 +100,7 @@ class RailwayMainCommand {
             directionPoint = directionPoint
         )
         railwayData.save()
-        sender.sendRichMessage("$action railway: $railwayId")
+        sender.sendRichMessage("<green>路線を${action}しました: <white>$railwayId</white>")
     }
 
     @Command("remove <railwayId>")
@@ -109,11 +109,11 @@ class RailwayMainCommand {
     suspend fun remove(sender: CommandSender, @Argument("railwayId") railwayId: RailwayId) {
         val file = DataPaths.railways.resolve("$railwayId.json")
         if (!file.exists()) {
-            sender.sendRichMessage("Error: Railway not found")
+            sender.sendRichMessage("<red>路線が見つかりません。")
             return
         }
         file.delete()
         FileLoader.mapDataLoad()
-        sender.sendRichMessage("Removed railway: $railwayId")
+        sender.sendRichMessage("<green>路線を削除しました: <white>$railwayId</white>")
     }
 }

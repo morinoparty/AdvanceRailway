@@ -33,9 +33,9 @@ class StationEditCommand {
         @Argument("stationId") stationId: StationId,
         @Argument("newName") newName: String,
     ) {
-        val data = StationUtils.getStationData(stationId).getOrSend(sender) { "Station not found" } ?: return
+        val data = StationUtils.getStationData(stationId).getOrSend(sender) { "<red>駅が見つかりません。" } ?: return
         data.copy(name = newName).save()
-        sender.sendRichMessage("Station name set")
+        sender.sendRichMessage("<green>駅名を変更しました。")
     }
 
     @Command("set location <stationId> [point]")
@@ -47,7 +47,7 @@ class StationEditCommand {
         @Argument("point") inputPoint: Point3D?,
     ) {
         if (sender !is Player && inputPoint == null) {
-            sender.sendRichMessage("Error: You must enter the point")
+            sender.sendRichMessage("<red>座標を指定してください（プレイヤー以外は必須です）。")
             return
         }
         val point = inputPoint ?: (sender as Player).location.toPoint3D()
@@ -55,13 +55,13 @@ class StationEditCommand {
             sender.world
         } else {
             Bukkit.getWorld("world") ?: run {
-                sender.sendRichMessage("Error: World \"world\" not found")
+                sender.sendRichMessage("<red>ワールド \"world\" が見つかりません。")
                 return
             }
         }
-        val data = StationUtils.getStationData(stationId).getOrSend(sender) { "Station not found" } ?: return
+        val data = StationUtils.getStationData(stationId).getOrSend(sender) { "<red>駅が見つかりません。" } ?: return
         data.copy(point = point, world = world).save()
-        sender.sendRichMessage("Station location set")
+        sender.sendRichMessage("<green>駅の座標を変更しました。")
     }
 
     @Command("set numbering <stationId> <numbering>")
@@ -72,9 +72,9 @@ class StationEditCommand {
         @Argument("stationId") stationId: StationId,
         @Argument("numbering") numbering: String,
     ) {
-        val data = StationUtils.getStationData(stationId).getOrSend(sender) { "Station not found" } ?: return
+        val data = StationUtils.getStationData(stationId).getOrSend(sender) { "<red>駅が見つかりません。" } ?: return
         data.copy(numbering = numbering).save()
-        sender.sendRichMessage("Station numbering set")
+        sender.sendRichMessage("<green>駅ナンバリングを変更しました。")
     }
 
     @Command("set color <stationId> <r> <g> <b>")
@@ -88,11 +88,11 @@ class StationEditCommand {
         @Argument("b") b: Int,
     ) {
         if (r !in 0..255 || g !in 0..255 || b !in 0..255) {
-            sender.sendRichMessage("Error: RGB values must each be between 0 and 255")
+            sender.sendRichMessage("<red>RGB は各 0〜255 で指定してください。")
             return
         }
-        val data = StationUtils.getStationData(stationId).getOrSend(sender) { "Station not found" } ?: return
+        val data = StationUtils.getStationData(stationId).getOrSend(sender) { "<red>駅が見つかりません。" } ?: return
         data.copy(color = Color(r, g, b)).save()
-        sender.sendRichMessage("Station color set")
+        sender.sendRichMessage("<green>駅の色を変更しました。")
     }
 }

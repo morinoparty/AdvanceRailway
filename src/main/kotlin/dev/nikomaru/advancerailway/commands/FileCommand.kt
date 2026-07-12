@@ -67,7 +67,7 @@ class FileCommand: KoinComponent {
         }
         val uuid = java.util.UUID.randomUUID()
         plugin.dataFolder.resolve("export-${uuid}.$extension").writeText(data)
-        sender.sendMessage("Exported to export-${uuid}.$extension")
+        sender.sendRichMessage("<green>エクスポートしました: <white>export-${uuid}.$extension</white>")
     }
 
     @Command("import <dataType> <fileName>")
@@ -80,7 +80,7 @@ class FileCommand: KoinComponent {
     ) {
         val importFile = DataPaths.import.resolve(fileName)
         if (!importFile.exists()) {
-            sender.sendRichMessage("Error: Import file not found: $fileName")
+            sender.sendRichMessage("<red>インポートファイルが見つかりません: <white>$fileName</white>")
             return
         }
         val data = importFile.readText()
@@ -124,6 +124,6 @@ class FileCommand: KoinComponent {
                 }
             }
         }
-        sender.sendMessage("Imported $fileName")
+        sender.sendRichMessage("<green>インポートしました: <white>$fileName</white>")
     }
 }
