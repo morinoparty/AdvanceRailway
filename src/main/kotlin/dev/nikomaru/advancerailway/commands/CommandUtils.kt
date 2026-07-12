@@ -11,6 +11,22 @@ package dev.nikomaru.advancerailway.commands
 
 import arrow.core.Either
 import org.bukkit.command.CommandSender
+import java.awt.Color
+
+/**
+ * ユーザー由来の文字列（駅名・グループ名など）を MiniMessage に埋め込む際のエスケープ。
+ * `<` を `\<` にしてタグ注入を防ぐ。表示に使う名前は必ずこれを通す。
+ */
+fun esc(text: String): String = text.replace("<", "\\<")
+
+/** [Color] を MiniMessage の `<color:#RRGGBB>` で使える `#RRGGBB` 形式にする。 */
+fun Color.toHex(): String = "#%02X%02X%02X".format(red, green, blue)
+
+/** 秒単位の所要時間を「分（小数第1位）」の文字列にする。route 表示と同じ換算。 */
+fun formatMinutes(timeRequiredSeconds: Long): String {
+    val minutes = kotlin.math.ceil(timeRequiredSeconds / 6.0) / 10
+    return "$minutes 分"
+}
 
 /**
  * [Either] の [Either.Right] を取り出す。[Either.Left] の場合は [msg] で生成した
