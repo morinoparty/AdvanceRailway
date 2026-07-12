@@ -4,9 +4,14 @@ on:
   release:
     types: [ published ]
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -20,24 +25,28 @@ jobs:
       - name: Change wrapper permissions
         run: chmod +x ./gradlew
 
-      - name: change plugin.yml version
+      # タグ（例: v1.2.0）から先頭の v を除いた値をプラグインバージョンとして使う。
+      - name: Set version env
         run: |
           before="${{ github.event.release.tag_name }}"
           after="${before//v/}"
-          sed -i -e "s/minecraft_plugin_version/$after/i" './build.gradle.kts'
-          cat ./build.gradle.kts
+          echo "PLUGIN_VERSION=$after" >> $GITHUB_ENV
+
+      # gradle.properties の VersionPlaceholder をリリースバージョンへ置換する。
+      # これが plugin.yml の version に反映され、`ar info` で表示される（MineAuth と同じ方式）。
+      - name: change plugin.yml version
+        run: |
+          echo "バージョンは ${{ env.PLUGIN_VERSION }} なのだ！"
+          sed -i "s/VersionPlaceholder/${{ env.PLUGIN_VERSION }}/" ./gradle.properties
 
       - name: Build with Gradle
         run: ./gradlew build -x test
 
+      - name: Rename artifact
+        run: mv ./build/libs/AdvanceRailway-${{ env.PLUGIN_VERSION }}-all.jar ./build/libs/AdvanceRailway_${{ env.PLUGIN_VERSION }}.jar
+
       - name: Upload release
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: ./build/libs/AdvanceRailway-1.0-SNAPSHOT-all.jar
-          asset_name: AdvanceRailway_${{ github.event.release.tag_name }}.jar
-          asset_content_type: application/jar
-
-
+        run: |
+          gh release upload ${{ github.event.release.tag_name }} \
+            ./build/libs/AdvanceRailway_${{ env.PLUGIN_VERSION }}.jar \
+            --clobber
