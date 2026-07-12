@@ -28,18 +28,20 @@ import dev.nikomaru.advancerailway.file.FileLoader
 import dev.nikomaru.advancerailway.listener.RailClickEvent
 import dev.nikomaru.advancerailway.mineauth.MineAuthIntegration
 import dev.nikomaru.advancerailway.utils.command.GroupIdParser
-import dev.nikomaru.advancerailway.utils.command.GroupIdParser.registerGroupIdParser
-import dev.nikomaru.advancerailway.utils.command.Point3DParser.registerPoint3DParser
+import dev.nikomaru.advancerailway.utils.command.Point3DParser
 import dev.nikomaru.advancerailway.utils.command.RailwayIdParser
-import dev.nikomaru.advancerailway.utils.command.RailwayIdParser.registerRailwayIdParser
 import dev.nikomaru.advancerailway.utils.command.StationIdParser
-import dev.nikomaru.advancerailway.utils.command.StationIdParser.registerStationIdParser
+import dev.nikomaru.advancerailway.commands.CommandSenderMapper
 import org.bukkit.Bukkit
+import org.bukkit.command.CommandSender
+import org.incendo.cloud.CommandManager
+import org.incendo.cloud.annotations.AnnotationParser
+import org.incendo.cloud.execution.ExecutionCoordinator
+import org.incendo.cloud.kotlin.coroutines.annotations.installCoroutineSupport
+import org.incendo.cloud.paper.PaperCommandManager
 import org.koin.core.context.GlobalContext
 import org.koin.core.context.loadKoinModules
 import org.koin.dsl.module
-import revxrsal.commands.bukkit.BukkitCommandHandler
-import revxrsal.commands.ktx.supportSuspendFunctions
 import xyz.jpenilla.squaremap.api.*
 
 
@@ -101,43 +103,38 @@ open class AdvanceRailway: SuspendingJavaPlugin() {
     }
 
     private fun setCommand() {
-        val handler = BukkitCommandHandler.create(this)
+        // Incendo Cloud へ移行中。Brigadier ネイティブ送信者を CommandSender へマップし、
+        // asyncCoordinator でハンドラを実行、installCoroutineSupport で suspend ハンドラを許可する。
+        val commandManager: CommandManager<CommandSender> =
+            PaperCommandManager.builder(CommandSenderMapper())
+                .executionCoordinator(ExecutionCoordinator.asyncCoordinator())
+                .buildOnEnable(this)
 
-        handler.setSwitchPrefix("--")
-        handler.setFlagPrefix("--")
-        handler.supportSuspendFunctions()
-
-        handler.setHelpWriter { command, _ ->
-            java.lang.String.format(
-                """
-                <color:yellow>command: <color:gray>%s %s
-                <color:yellow>description: <color:gray>%s
-                
-                """.trimIndent(),
-                command.path.toRealString(),
-                command.usage,
-                command.description,
-            )
+        // ID・座標のカスタムパーサを登録する（補完＝表示名、解決＝名前 or ID）。
+        with(commandManager.parserRegistry()) {
+            registerParser(Point3DParser.point3DParser())
+            registerParser(StationIdParser.stationIdParser())
+            registerParser(RailwayIdParser.railwayIdParser())
+            registerParser(GroupIdParser.groupIdParser())
         }
-        handler.registerPoint3DParser()
-        handler.registerRailwayIdParser()
-        handler.registerStationIdParser()
-        handler.registerGroupIdParser()
 
-        with(handler) {
-            register(GeneralCommand())
-            register(RailwayMainCommand())
-            register(RailwayInfoCommand())
-            register(RailwayEditCommand())
-            register(RailwayRouteCommand())
-            register(StationMainCommand())
-            register(StationInfoCommand())
-            register(StationEditCommand())
-            register(GroupMainCommand())
-            register(GroupInfoCommand())
-            register(GroupEditCommand())
-            register(FileCommand())
-        }
+        val annotationParser = AnnotationParser(commandManager, CommandSender::class.java)
+        annotationParser.installCoroutineSupport()
+
+        annotationParser.parse(
+            GeneralCommand(),
+            RailwayMainCommand(),
+            RailwayInfoCommand(),
+            RailwayEditCommand(),
+            RailwayRouteCommand(),
+            StationMainCommand(),
+            StationInfoCommand(),
+            StationEditCommand(),
+            GroupMainCommand(),
+            GroupInfoCommand(),
+            GroupEditCommand(),
+            FileCommand(),
+        )
     }
 
     private fun setEventHandlers() { // Register event handlers

@@ -29,3 +29,41 @@ inline fun <L, R> Either<L, R>.getOrSend(sender: CommandSender, msg: (L) -> Stri
 
     is Either.Right -> this.value
 }
+
+/**
+ * 一覧を 1 ページ [perPage] 件でページ送り表示する共通ヘルパ。
+ * 見出し（総件数・現在ページ）と、次ページへ進むクリック行を自動で付ける。
+ * これにより `station list` / `railway list` / `group list` が同じ体裁になる。
+ *
+ * @param items       表示対象の全件（未整形の値）。
+ * @param page        1 始まりのページ番号。範囲外は端にクランプする。
+ * @param header      一覧の見出し（MiniMessage）。
+ * @param empty       0 件のときに表示するメッセージ（MiniMessage）。
+ * @param pageCommand ページ番号を付けて再実行するコマンド（末尾へ半角スペース＋番号を付す）。例: `/ar station list`
+ * @param render      1 件を表示行（MiniMessage）へ整形する関数。
+ */
+inline fun <T> CommandSender.sendPaginated(
+    items: List<T>,
+    page: Int,
+    header: String,
+    empty: String,
+    pageCommand: String,
+    perPage: Int = 8,
+    render: (T) -> String,
+) {
+    if (items.isEmpty()) {
+        sendRichMessage(empty)
+        return
+    }
+    val totalPages = (items.size + perPage - 1) / perPage
+    val current = page.coerceIn(1, totalPages)
+    val from = (current - 1) * perPage
+    val to = minOf(from + perPage, items.size)
+    sendRichMessage("$header <gray>(全 ${items.size} 件 / ページ $current/$totalPages)</gray>")
+    for (i in from until to) sendRichMessage(render(items[i]))
+    if (current < totalPages) {
+        sendRichMessage(
+            "<click:run_command:'$pageCommand ${current + 1}'><gray>» 次のページ ($current/$totalPages → ${current + 1})</gray></click>"
+        )
+    }
+}
