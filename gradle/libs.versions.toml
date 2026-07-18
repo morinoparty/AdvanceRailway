@@ -1,5 +1,5 @@
 [versions]
-paperVersion = "26.1.2.build.72-stable"
+paperVersion = "26.1.2.build.74-stable"
 squaremapVersion = "1.3.14"
 mccoroutineVersion = "2.22.0"
 # Incendo Cloud コマンドフレームワーク（MoripaFishing 等 morinoparty 系プラグインと揃える）。
@@ -17,7 +17,7 @@ mineauthVersion = "0.3.4"
 mockbukkitVersion = "4.110.0"
 mockkVersion = "1.14.11"
 # MockBukkit 4.110.0 がターゲットとする paper-api（テスト実行時のみ使用）。
-paperTestVersion = "1.21.11-R0.1-SNAPSHOT"
+paperTestVersion = "26.1.2.build.74-stable"
 
 [libraries]
 paper-api = { group = "io.papermc.paper", name = "paper-api", version.ref = "paperVersion" }
