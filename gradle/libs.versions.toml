@@ -13,7 +13,7 @@ csvSerializationVersion = "3.2.2"
 protocolLibVersion = "5.3.0"
 junitVersion = "6.1.1"
 arrow-ktVersion = "2.2.3"
-mineauthVersion = "0.3.2"
+mineauthVersion = "0.3.4"
 mockbukkitVersion = "4.110.0"
 mockkVersion = "1.14.11"
 # MockBukkit 4.110.0 がターゲットとする paper-api（テスト実行時のみ使用）。
