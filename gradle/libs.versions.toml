@@ -4,7 +4,7 @@ squaremapVersion = "1.3.14"
 mccoroutineVersion = "2.22.0"
 # Incendo Cloud コマンドフレームワーク（MoripaFishing 等 morinoparty 系プラグインと揃える）。
 # cloud-core は安定版、cloud-paper は 2.0.0-SNAPSHOT を使う。
-cloudVersion = "2.0.0"
+cloudVersion = "2.1.0"
 cloudPaperVersion = "2.0.0-SNAPSHOT"
 koinVersion = "4.2.2"
 coroutineVersion = "1.11.0"
