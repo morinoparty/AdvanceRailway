@@ -1,0 +1,62 @@
+---
+title: MineAuth HTTP API
+description: 駅・路線・グループ・経路を JSON で取得する読み取り専用 API
+---
+
+# MineAuth HTTP API
+
+MineAuth プラグインを AdvanceRailway と同時に導入している場合（MineAuth は任意の依存で、無くても AdvanceRailway は動作します）、
+AdvanceRailway は以下のベースパス配下に、認証付き・読み取り専用の HTTP エンドポイントを登録します。
+
+```
+/api/v1/plugins/advancerailway/
+```
+
+MineAuth が未導入の場合、これらのエンドポイントは登録されません。
+
+## エンドポイント
+
+| メソッド | パス | 説明 | 詳細 |
+| --- | --- | --- | --- |
+| GET | `/stations` | 全駅を一覧取得 | [駅 API](/docs/mineauth-api/stations) |
+| GET | `/stations/{id}` | 駅を 1 件取得 | [駅 API](/docs/mineauth-api/stations) |
+| GET | `/stations/{id}/railways` | その駅に接続する路線一覧 | [駅 API](/docs/mineauth-api/stations) |
+| GET | `/nearest-station?world={w}&x={x}&z={z}` | 指定座標に最も近い駅 | [駅 API](/docs/mineauth-api/stations) |
+| GET | `/railways` | 全路線を一覧取得 | [路線 API](/docs/mineauth-api/railways) |
+| GET | `/railways/{id}` | 路線を 1 件取得 | [路線 API](/docs/mineauth-api/railways) |
+| GET | `/groups` | 全グループを一覧取得 | [グループ API](/docs/mineauth-api/groups) |
+| GET | `/groups/{id}` | グループを 1 件取得 | [グループ API](/docs/mineauth-api/groups) |
+| GET | `/groups/{id}/railways` | そのグループに属する路線一覧 | [グループ API](/docs/mineauth-api/groups) |
+| GET | `/route?from={id}&to={id}` | 2 駅間の最短経路を取得 | [経路 API](/docs/mineauth-api/route) |
+| GET | `/stats` | ネットワークの件数サマリ | 下記 |
+
+パスはベースパスからの相対です（例: 駅一覧の完全パスは `/api/v1/plugins/advancerailway/stations`）。
+存在しない ID を指定した取得は HTTP `404 Not Found` を返します。レスポンスはすべて JSON です。
+
+## 認証
+
+全エンドポイントは `@Authenticated(callers = [CallerType.SERVICE])` を宣言しており、**サービスアカウントトークン**
+（管理者が MineAuth 経由で発行する信頼された資格情報）でのみ呼び出せます。プレイヤーのユーザートークンは拒否されます。
+座標などの情報を含むため、サービストークンは信頼できるバックエンド連携にのみ発行してください。
+
+サービストークンは信頼された資格情報として扱われるため、MineAuth は Bukkit のパーミッションノードを評価しません。
+アクセス可否は有効なサービストークンを持つかどうかのみで決まります。
+
+設定で連携を無効化することもできます（プラグイン設定の `mineAuthEnabled: false`）。
+
+## ページング
+
+一覧エンドポイント（`/stations` / `/railways` / `/groups`）は `limit` / `offset` クエリを受け付けます。
+
+- `limit` — 返す件数。既定 `100`、上限 `500`。
+- `offset` — スキップする件数。既定 `0`。
+
+例: `GET /api/v1/plugins/advancerailway/stations?limit=50&offset=100`
+
+## 統計（Stats）
+
+`GET /stats` はネットワークの件数サマリを返します。
+
+```json
+{ "stations": 159, "railways": 271, "groups": 32 }
+```

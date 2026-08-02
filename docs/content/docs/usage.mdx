@@ -31,12 +31,18 @@ description: 駅・グループ・路線の作り方と経路検索
 
 ## 路線（レール）の追加
 
-`ar railway add <railwayId> <start> <direction> <end>` で路線を追加します。
+`ar railway add <railwayId> <start> <direction> <end> [flags]` で路線を追加します。
 
 - `railwayId` : 路線の ID
 - `start` / `direction` / `end` : 始点・方向・終点の座標
+- `flags` : 分岐点で選ぶ方角の並び（分岐がある場合のみ。例: `EE`）
 
 始点・終点は、与えられた座標から最も近い駅が自動的に選ばれます。所要時間はレールの長さから自動計算されます。
+
+:::note
+座標を手で調べる必要はありません。[`ar inspect`](/docs/commands/general#ar-inspect--線路の解析) でレールをクリックすると
+終端が列挙され、`[作成]` をクリックするだけで座標・分岐フラグ入りの `ar railway add` が入力されます。
+:::
 
 ## グループへの追加・色の変更
 

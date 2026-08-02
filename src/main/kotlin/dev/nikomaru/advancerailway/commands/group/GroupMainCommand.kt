@@ -9,12 +9,12 @@
 
 package dev.nikomaru.advancerailway.commands.group
 
-import dev.nikomaru.advancerailway.file.DataPaths
-import dev.nikomaru.advancerailway.file.FileLoader
-import dev.nikomaru.advancerailway.file.data.GroupData
-import dev.nikomaru.advancerailway.file.data.RailwayData
-import dev.nikomaru.advancerailway.file.value.GroupId
-import dev.nikomaru.advancerailway.file.value.IdValidation
+import dev.nikomaru.advancerailway.storage.DataPaths
+import dev.nikomaru.advancerailway.storage.FileLoader
+import dev.nikomaru.advancerailway.storage.model.GroupData
+import dev.nikomaru.advancerailway.storage.model.RailwayData
+import dev.nikomaru.advancerailway.domain.id.GroupId
+import dev.nikomaru.advancerailway.domain.id.IdValidation
 import dev.nikomaru.advancerailway.utils.Utils.json
 import kotlinx.serialization.decodeFromString
 import org.bukkit.command.CommandSender

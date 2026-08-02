@@ -2,8 +2,9 @@
     "pages": [
         "index",
         "usage",
-        "commands",
-        "file",
-        "mineauth-api"
+        "---コマンド---",
+        "...commands",
+        "---MineAuth API---",
+        "...mineauth-api"
     ]
 }

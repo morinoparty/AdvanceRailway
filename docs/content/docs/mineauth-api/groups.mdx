@@ -1,0 +1,26 @@
+---
+title: グループ API
+description: グループ（路線名）の取得
+---
+
+# グループ API
+
+## レスポンス形式（Group）
+
+```json
+{
+  "id": "main-line",
+  "name": "本線",
+  "color": "#00A0FF"
+}
+```
+
+## 一覧・単体取得
+
+- `GET /groups` — 全グループを一覧取得します（[ページング](/docs/mineauth-api#ページング)対応）。
+- `GET /groups/{id}` — グループを 1 件取得します。存在しなければ `404`。
+
+## 属する路線
+
+- `GET /groups/{id}/railways` — そのグループ（路線）に属する路線を
+  [`/railways`](/docs/mineauth-api/railways) と同じ形式（`{ "railways": [ ... ] }`）で返します。グループが存在しなければ `404`。

@@ -1,0 +1,45 @@
+---
+title: コマンド一覧
+description: AdvanceRailway の全コマンドと権限
+---
+
+# コマンド一覧
+
+ルートコマンドは `/ar`（別名 `/advancerailway`）です。
+コマンドは [Incendo Cloud](https://cloud.incendo.org/) で実装されています。
+
+コマンドは対象ごとにページを分けています。
+
+- [一般コマンド](/docs/commands/general) — info / help / reload / **inspect（線路の解析）** / debug
+- [駅コマンド](/docs/commands/station) — 駅の追加・編集・一覧
+- [路線コマンド](/docs/commands/railway) — 路線の追加（分岐フラグ対応）・引き直し・**V2 への移行**・経路検索
+- [グループコマンド](/docs/commands/group) — グループ（路線名・色）の管理
+- [ファイルコマンド](/docs/commands/file) — データのエクスポート・インポート
+
+## 権限（ロール型）
+
+権限は 3 つのロールに集約されています。
+
+| ロール | ノード | 既定 | 内容 |
+| --- | --- | --- | --- |
+| 閲覧 | `advancerailway.user` | **全員** | すべての閲覧コマンド（info / list / route） |
+| 編集 | `advancerailway.manage` | OP | すべての編集コマンド（add / remove / set …）＋ file / reload |
+| 管理 | `advancerailway.admin` | OP | 上記すべて＋ inspect / debug |
+
+個別のリーフノード: `advancerailway.{station,railway,group}.view`（全員）、
+`advancerailway.railway.route`・`advancerailway.info`（全員）、
+`advancerailway.{station,railway,group}.manage`・`advancerailway.file`・`advancerailway.reload`・
+`advancerailway.inspect`・`advancerailway.debug`（OP）。
+
+:::warning
+以前は `advancerailway.admin` が `default: true` で全ノードの親だったため、**一般プレイヤーにも編集権限が付与**されていました。
+現在は閲覧系のみ全員に公開され、編集・運用系は OP 限定です。
+:::
+
+## 共通の仕様
+
+:::note
+駅・路線・グループを引数に取るコマンドは、ID だけでなく **表示名** でも指定できます（タブ補完では名前が候補に出ます）。
+:::
+
+座標引数（`point` / `start` / `direction` / `end`）は `x,y,z` のカンマ区切りで指定します。

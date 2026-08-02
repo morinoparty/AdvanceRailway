@@ -14,16 +14,16 @@ import dev.nikomaru.advancerailway.commands.formatMinutes
 import dev.nikomaru.advancerailway.commands.getOrSend
 import dev.nikomaru.advancerailway.commands.sendPaginated
 import dev.nikomaru.advancerailway.commands.toHex
-import dev.nikomaru.advancerailway.file.DataPaths
-import dev.nikomaru.advancerailway.file.data.GroupData
-import dev.nikomaru.advancerailway.file.data.RailwayData
-import dev.nikomaru.advancerailway.file.value.GroupId
-import dev.nikomaru.advancerailway.file.value.IdValidation
-import dev.nikomaru.advancerailway.file.value.RailwayId
-import dev.nikomaru.advancerailway.file.value.StationId
-import dev.nikomaru.advancerailway.utils.GroupUtils
-import dev.nikomaru.advancerailway.utils.RailwayUtils
-import dev.nikomaru.advancerailway.utils.StationUtils
+import dev.nikomaru.advancerailway.storage.DataPaths
+import dev.nikomaru.advancerailway.storage.model.GroupData
+import dev.nikomaru.advancerailway.storage.model.RailwayData
+import dev.nikomaru.advancerailway.domain.id.GroupId
+import dev.nikomaru.advancerailway.domain.id.IdValidation
+import dev.nikomaru.advancerailway.domain.id.RailwayId
+import dev.nikomaru.advancerailway.domain.id.StationId
+import dev.nikomaru.advancerailway.domain.service.GroupUtils
+import dev.nikomaru.advancerailway.domain.service.RailwayUtils
+import dev.nikomaru.advancerailway.domain.service.StationUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.bukkit.command.CommandSender
@@ -54,7 +54,7 @@ class RailwayInfoCommand {
             val hex = groupData.railwayColor.toHex()
             sender.sendRichMessage(
                 "<gray>グループ: <color:$hex>${esc(groupData.name)}</color> " +
-                    "<dark_gray>(${data.group.value})</dark_gray> " +
+                    "<dark_gray>(${data.group?.value})</dark_gray> " +
                     "<click:suggest_command:'/ar railway set group $id <group>'><dark_gray>[編集]</dark_gray></click>"
             )
         } else {

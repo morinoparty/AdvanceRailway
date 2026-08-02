@@ -11,7 +11,7 @@ package dev.nikomaru.advancerailway.commands
 
 import com.github.shynixn.mccoroutine.bukkit.minecraftDispatcher
 import dev.nikomaru.advancerailway.AdvanceRailway
-import dev.nikomaru.advancerailway.file.FileLoader
+import dev.nikomaru.advancerailway.storage.FileLoader
 import dev.nikomaru.advancerailway.listener.RailClickEvent
 import dev.nikomaru.advancerailway.utils.Utils.toPoint3D
 import kotlinx.coroutines.withContext

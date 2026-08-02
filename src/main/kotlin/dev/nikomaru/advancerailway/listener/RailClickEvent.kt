@@ -10,11 +10,14 @@
 package dev.nikomaru.advancerailway.listener
 
 import arrow.core.Either
-import dev.nikomaru.advancerailway.Point3D
-import dev.nikomaru.advancerailway.utils.RailwayUtils
-import dev.nikomaru.advancerailway.utils.RailwayUtils.railEndpointInspect
-import dev.nikomaru.advancerailway.utils.StationUtils
-import dev.nikomaru.advancerailway.utils.coroutines.minecraft
+import dev.nikomaru.advancerailway.domain.geometry.Point3D
+import dev.nikomaru.advancerailway.domain.rail.BranchEndpoint
+import dev.nikomaru.advancerailway.domain.rail.EndpointKind
+import dev.nikomaru.advancerailway.domain.error.toUserMessage
+import dev.nikomaru.advancerailway.domain.service.RailwayUtils
+import dev.nikomaru.advancerailway.domain.service.RailwayUtils.railEndpointInspect
+import dev.nikomaru.advancerailway.domain.service.StationUtils
+import dev.nikomaru.advancerailway.platform.coroutines.minecraft
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -44,51 +47,82 @@ class RailClickEvent: Listener {
                 return@withContext
             }
 
-            player.sendRichMessage("Detecting railway...")
+            player.sendRichMessage("<gray>線路を探索しています...")
             val locate = block.location
             val startPoint = locate.let { Point3D(it.x, it.y, it.z) }
-            val availableLocations = RailwayUtils.getRailAvailableDirection(startPoint).map { (x, y, z) ->
+            val availableLocations = RailwayUtils.getRailAvailableDirection(blockState.shape).map { (x, y, z) ->
                 locate.clone().add(x.toDouble(), y.toDouble(), z.toDouble())
             }
             val detectedRailLocations = availableLocations.filter { it.block.blockData is Rail }
             if (detectedRailLocations.count() == 1) {
-                player.sendRichMessage("This is a first or last rail.")
+                player.sendRichMessage("<gray>このレールは線路の端です。")
             } else {
-                player.sendRichMessage("This is a middle rail.")
+                player.sendRichMessage("<gray>このレールは線路の途中です。")
             }
             val res = detectedRailLocations.map { detectedPlace ->
                 async {
-                    railEndpointInspect(locate.let { Point3D(it.x, it.y, it.z) },
-                                        detectedPlace.let { Point3D(it.x, it.y, it.z) })
+                    railEndpointInspect(startPoint, detectedPlace.let { Point3D(it.x, it.y, it.z) }, player.world)
                 }
             }.awaitAll()
-            res.forEach {
-                when (it) {
+            res.forEach { result ->
+                when (result) {
                     is Either.Right -> {
-                        player.sendRichMessage("Railway end detected.")
-                        val list = it.value.toList()
-                        list.forEach { value ->
-                            val (start, direction, end) = value
-                            val startStation = StationUtils.nearStation(start!!.toLocation(player.world)).getOrNull()
-                            val endStation = StationUtils.nearStation(end!!.toLocation(player.world)).getOrNull()
-                            if (startStation == null || endStation == null) {
-                                player.sendRichMessage("No stations registered yet")
-                                return@forEach
-                            }
-                            val railwayId = startStation.value + "_" + endStation.value
-                            val suggestMessage =
-                                "<click:suggest_command:'/ar railway add $railwayId ${start.toPlainString()} ${direction!!.toPlainString()} ${end.toPlainString()}'>[create]</click>"
-                            player.sendRichMessage(
-                                "Railway Data : ${startStation.toData()?.name} : ${start.toPlainString()} -> ${endStation.toData()?.name} : ${end.toPlainString()} $suggestMessage"
-                            )
+                        player.sendRichMessage("<green>${result.value.size} 件の終端を検出しました。")
+                        result.value.forEach { endpoint ->
+                            sendEndpoint(player, endpoint)
                         }
                     }
 
                     is Either.Left -> {
-                        player.sendRichMessage("Error: ${it.value}")
+                        player.sendRichMessage(result.value.toUserMessage())
                     }
                 }
             }
+        }
+    }
+
+    /**
+     * 終端1件を forward（クリック点→終端）・backward（終端→クリック点）の2行で表示する。
+     * forward の [作成] には分岐フラグ（例: EE）を railway add の flags 引数として付ける。
+     * backward の分岐フラグは逆走時の分岐の現れ方が異なり算出していないため、分岐なしの場合のみ [作成] を出す。
+     */
+    private suspend fun sendEndpoint(player: Player, endpoint: BranchEndpoint) {
+        val label = buildString {
+            if (endpoint.flags.isNotEmpty()) {
+                append("<yellow>[分岐: ${endpoint.flagString()}]</yellow> ")
+            }
+            when (endpoint.kind) {
+                EndpointKind.STOP_BLOCK -> append("<gold>[停止ブロック]</gold> ")
+                EndpointKind.LOOP -> append("<gray>[環状/合流]</gray> ")
+                EndpointKind.RAIL_END -> {}
+            }
+        }
+        val flagsArg = endpoint.flagString()
+        listOf(
+            endpoint.forward to flagsArg,
+            endpoint.backward to if (endpoint.flags.isEmpty()) "" else null,
+        ).forEach { (data, flags) ->
+            val start = data.start ?: return@forEach
+            val direction = data.direction ?: return@forEach
+            val end = data.end ?: return@forEach
+            val startStation = StationUtils.nearStation(start.toLocation(player.world)).getOrNull()
+            val endStation = StationUtils.nearStation(end.toLocation(player.world)).getOrNull()
+            if (startStation == null || endStation == null) {
+                player.sendRichMessage(
+                    "$label<white>${start.toPlainString()} -> ${end.toPlainString()}</white> <gray>(付近に駅が登録されていません)"
+                )
+                return@forEach
+            }
+            val railwayId = startStation.value + "_" + endStation.value
+            val suggestMessage = if (flags != null) {
+                val flagsSuffix = if (flags.isEmpty()) "" else " $flags"
+                " <click:suggest_command:'/ar railway add $railwayId ${start.toPlainString()} ${direction.toPlainString()} ${end.toPlainString()}$flagsSuffix'><green>[作成]</green></click>"
+            } else {
+                ""
+            }
+            player.sendRichMessage(
+                "$label<white>${startStation.toData()?.name} : ${start.toPlainString()} -> ${endStation.toData()?.name} : ${end.toPlainString()}</white>$suggestMessage"
+            )
         }
     }
 }

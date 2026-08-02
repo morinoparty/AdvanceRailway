@@ -10,8 +10,8 @@
 package dev.nikomaru.advancerailway.commands.group
 
 import dev.nikomaru.advancerailway.commands.getOrSend
-import dev.nikomaru.advancerailway.file.value.GroupId
-import dev.nikomaru.advancerailway.utils.GroupUtils
+import dev.nikomaru.advancerailway.domain.id.GroupId
+import dev.nikomaru.advancerailway.domain.service.GroupUtils
 import org.bukkit.command.CommandSender
 import org.incendo.cloud.annotations.Argument
 import org.incendo.cloud.annotations.Command

@@ -10,60 +10,66 @@
 package dev.nikomaru.advancerailway.commands.railway
 
 
-import dev.nikomaru.advancerailway.Point3D
-import dev.nikomaru.advancerailway.file.DataPaths
-import dev.nikomaru.advancerailway.file.FileLoader
-import dev.nikomaru.advancerailway.file.data.RailwayData
-import dev.nikomaru.advancerailway.file.type.LineType
-import dev.nikomaru.advancerailway.file.value.IdValidation
-import dev.nikomaru.advancerailway.file.value.RailwayId
-import dev.nikomaru.advancerailway.utils.RailwayUtils
-import dev.nikomaru.advancerailway.utils.StationUtils
+import dev.nikomaru.advancerailway.domain.geometry.Point3D
+import dev.nikomaru.advancerailway.domain.rail.BranchDirection
+import dev.nikomaru.advancerailway.storage.DataPaths
+import dev.nikomaru.advancerailway.storage.FileLoader
+import dev.nikomaru.advancerailway.storage.model.RailwayData
+import dev.nikomaru.advancerailway.storage.type.LineType
+import dev.nikomaru.advancerailway.domain.id.IdValidation
+import dev.nikomaru.advancerailway.domain.id.RailwayId
+import dev.nikomaru.advancerailway.domain.service.RailwayUtils
+import dev.nikomaru.advancerailway.domain.service.StationUtils
+import dev.nikomaru.advancerailway.utils.Utils.json
 import org.bukkit.Bukkit
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
 import org.incendo.cloud.annotations.Argument
 import org.incendo.cloud.annotations.Command
 import org.incendo.cloud.annotations.CommandDescription
+import org.incendo.cloud.annotations.Default
 import org.incendo.cloud.annotations.Permission
 
 @Command("ar|advancerailway railway")
 class RailwayMainCommand {
 
-    @Command("add <railwayId> <startPoint> <directionPoint> <endPoint>")
-    @CommandDescription("駅間の経路を計算して新しい路線を登録します")
+    // flags は inspect の分岐フラグ（例: "EE"）。分岐点で進む方角を先頭から順に指定する。
+    @Command("add <railwayId> <startPoint> <directionPoint> <endPoint> [flags]")
+    @CommandDescription("駅間の経路を計算して新しい路線を登録します（flags: 分岐点で選ぶ方角の並び。例: EE）")
     @Permission("advancerailway.railway.manage")
     suspend fun register(
         sender: CommandSender,
         @Argument("railwayId") railwayId: String,
         @Argument("startPoint") startPoint: Point3D,
         @Argument("directionPoint") directionPoint: Point3D,
-        @Argument("endPoint") endPoint: Point3D
+        @Argument("endPoint") endPoint: Point3D,
+        @Argument("flags") @Default("") flags: String
     ) {
         if (!IdValidation.isValid(railwayId)) {
             sender.sendRichMessage("<red>路線 ID が不正です: <white>$railwayId</white>")
             return
         }
         sender.sendRichMessage("<gray>路線を登録しています…")
-        handleRailway(sender, railwayId, startPoint, directionPoint, endPoint, "登録")
+        handleRailway(sender, railwayId, startPoint, directionPoint, endPoint, flags, "登録")
     }
 
-    @Command("redraw <railwayId> <startPoint> <directionPoint> <endPoint>")
-    @CommandDescription("路線の経路を引き直します")
+    @Command("redraw <railwayId> <startPoint> <directionPoint> <endPoint> [flags]")
+    @CommandDescription("路線の経路を引き直します（flags: 分岐点で選ぶ方角の並び。例: EE）")
     @Permission("advancerailway.railway.manage")
     suspend fun redraw(
         sender: CommandSender,
         @Argument("railwayId") railwayId: String,
         @Argument("startPoint") startPoint: Point3D,
         @Argument("directionPoint") directionPoint: Point3D,
-        @Argument("endPoint") endPoint: Point3D
+        @Argument("endPoint") endPoint: Point3D,
+        @Argument("flags") @Default("") flags: String
     ) {
         if (!IdValidation.isValid(railwayId)) {
             sender.sendRichMessage("<red>路線 ID が不正です: <white>$railwayId</white>")
             return
         }
         sender.sendRichMessage("<gray>路線の経路を引き直しています…")
-        handleRailway(sender, railwayId, startPoint, directionPoint, endPoint, "引き直し")
+        handleRailway(sender, railwayId, startPoint, directionPoint, endPoint, flags, "引き直し")
     }
 
     private suspend fun handleRailway(
@@ -72,9 +78,14 @@ class RailwayMainCommand {
         startPoint: Point3D,
         directionPoint: Point3D,
         endPoint: Point3D,
+        flags: String,
         action: String
     ) {
-        val line = RailwayUtils.getLine(startPoint, directionPoint, endPoint).getOrNull() ?: run {
+        val branchFlags = BranchDirection.parse(flags) ?: run {
+            sender.sendRichMessage("<red>分岐フラグが不正です（N/S/E/W のみ使用できます）: <white>$flags</white>")
+            return
+        }
+        val line = RailwayUtils.getLine(startPoint, directionPoint, endPoint, branchFlags).getOrNull() ?: run {
             sender.sendRichMessage("<red>レール経路の取得に失敗しました。")
             return
         }
@@ -87,7 +98,7 @@ class RailwayMainCommand {
             sender.sendRichMessage("<red>終点付近の駅が見つかりません。")
             return
         }
-        val railwayData = RailwayData(
+        val railwayData = RailwayData.V2(
             id = RailwayId(railwayId),
             group = null,
             world = world,
@@ -97,10 +108,63 @@ class RailwayMainCommand {
             toStation = toStation, timeRequired = line.getLength().toLong() / 8,
             startPoint = startPoint,
             endPoint = endPoint,
-            directionPoint = directionPoint
+            directionPoint = directionPoint,
+            flags = branchFlags
         )
         railwayData.save()
         sender.sendRichMessage("<green>路線を${action}しました: <white>$railwayId</white>")
+    }
+
+    /**
+     * 旧形式 (V1) の路線データを再トレースして V2 に移行する。
+     * V1 は分岐情報を持たないため flags なしで再トレースし、分岐に当たった路線は
+     * 失敗として報告する（redraw で flags を指定して引き直すと V2 になる）。
+     */
+    @Command("migrate")
+    @CommandDescription("旧形式 (V1) の路線データを V2 に移行します")
+    @Permission("advancerailway.railway.manage")
+    suspend fun migrate(sender: CommandSender) {
+        val files = DataPaths.railways.listFiles()?.filter { it.extension == "json" } ?: emptyList()
+        var migrated = 0
+        var skipped = 0
+        var failed = 0
+        for (file in files) {
+            val data = try {
+                json.decodeFromString<RailwayData>(file.readText())
+            } catch (e: Exception) {
+                sender.sendRichMessage("<red>読み込み失敗: <white>${file.name}</white> — ${e.message}")
+                failed++
+                continue
+            }
+            if (data is RailwayData.V2) {
+                skipped++
+                continue
+            }
+            val line = RailwayUtils.getLine(data.startPoint, data.directionPoint, data.endPoint).getOrNull()
+            if (line == null) {
+                sender.sendRichMessage(
+                    "<red>移行失敗: <white>${data.id.value}</white> — 経路を再トレースできません（分岐がある場合は redraw で flags を指定してください）"
+                )
+                failed++
+                continue
+            }
+            RailwayData.V2(
+                id = data.id,
+                group = data.group,
+                world = data.world,
+                lineType = data.lineType,
+                line = line,
+                fromStation = data.fromStation,
+                toStation = data.toStation,
+                timeRequired = data.timeRequired,
+                startPoint = data.startPoint,
+                endPoint = data.endPoint,
+                directionPoint = data.directionPoint,
+                flags = emptyList()
+            ).save()
+            migrated++
+        }
+        sender.sendRichMessage("<green>移行完了: 移行 $migrated 件 / スキップ（既に V2）$skipped 件 / 失敗 $failed 件")
     }
 
     @Command("remove <railwayId>")

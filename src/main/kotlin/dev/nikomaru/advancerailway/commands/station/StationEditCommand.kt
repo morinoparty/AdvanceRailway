@@ -9,10 +9,10 @@
 
 package dev.nikomaru.advancerailway.commands.station
 
-import dev.nikomaru.advancerailway.Point3D
+import dev.nikomaru.advancerailway.domain.geometry.Point3D
 import dev.nikomaru.advancerailway.commands.getOrSend
-import dev.nikomaru.advancerailway.file.value.StationId
-import dev.nikomaru.advancerailway.utils.StationUtils
+import dev.nikomaru.advancerailway.domain.id.StationId
+import dev.nikomaru.advancerailway.domain.service.StationUtils
 import dev.nikomaru.advancerailway.utils.Utils.toPoint3D
 import org.bukkit.Bukkit
 import org.bukkit.command.CommandSender
