@@ -9,7 +9,7 @@
 
 package dev.nikomaru.advancerailway.utils
 
-import dev.nikomaru.advancerailway.Point3D
+import dev.nikomaru.advancerailway.domain.geometry.Point3D
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.csv.Csv
 import kotlinx.serialization.csv.config.QuoteMode

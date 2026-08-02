@@ -32,7 +32,9 @@ description: AdvanceRailway の全コマンド
 
 - `ar info` — プラグインの情報（バージョン・作者・サイト）を表示します。（全員）
 - `ar help` — コマンドの一覧を表示します。（全員）
-- `ar inspect` — 見ているレールを解析します（プレイヤー専用）。（OP）
+- `ar inspect` — クリックしたレールから線路を探索し、終端を列挙します（プレイヤー専用）。（OP）
+  - 分岐があってもすべての経路を探索し、各終端に分岐点で選んだ方角の並び（例: `EE` = 分岐を 2 回とも東へ）をフラグとして表示します。フラグ付きの `[作成]` から `ar railway add` にそのまま渡せます。
+  - レール直下が config の `inspectStopBlocks`（デフォルト: 金ブロック）のブロックだった場合、その地点で探索を打ち切り `[停止ブロック]` として表示します。列挙する終端数の上限は `inspectMaxEndpoints`（デフォルト: 16）です。
 - `ar debug block [distance]` — 見ているブロックの座標を表示します（旧 `ar targetBlock`・デバッグ用）。（OP）
 - `ar reload` — マップと設定を再読み込みします。（OP）
 
@@ -57,9 +59,10 @@ description: AdvanceRailway の全コマンド
 - `ar railway info <railwayId>` — 路線の情報を表示します。
 - `ar railway route <from> <to>` — 2 駅間の最短経路（レール＋徒歩、A\* 探索）を表示します。
 - `ar railway route <to>` — 現在地から目的駅までの最短経路を表示します（プレイヤー専用）。
-- `ar railway add <railwayId> <start> <direction> <end>` — 路線を追加します。
-- `ar railway redraw <railwayId> <start> <direction> <end>` — 路線の経路を引き直します（旧 `ar railway update`）。
+- `ar railway add <railwayId> <start> <direction> <end> [flags]` — 路線を追加します。`flags` は分岐点で選ぶ方角の並び（`N`/`S`/`E`/`W`、例: `EE`）。`ar inspect` の表示するフラグをそのまま渡します。
+- `ar railway redraw <railwayId> <start> <direction> <end> [flags]` — 路線の経路を引き直します（旧 `ar railway update`）。
 - `ar railway remove <railwayId>` — 路線を削除します。
+- `ar railway migrate` — 旧形式 (V1) の路線データを再トレースして V2（分岐フラグ付き形式）に一括移行します。分岐があって再トレースできない路線は報告されるので、`redraw` で flags を指定して引き直してください。V2 の路線は起動時に経路の変更が自動チェックされます。
 - `ar railway set line-type <railwayId> <lineType>` — 路線の種別を変更します。
 - `ar railway set group <railwayId> <group>` — 路線をグループに追加します（`none` を渡すと解除。旧 `ar railway unset group`）。
 - `ar railway set from-station <railwayId> <stationId>` — 始点駅を変更します。

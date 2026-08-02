@@ -24,13 +24,14 @@ import dev.nikomaru.advancerailway.commands.railway.RailwayRouteCommand
 import dev.nikomaru.advancerailway.commands.station.StationEditCommand
 import dev.nikomaru.advancerailway.commands.station.StationInfoCommand
 import dev.nikomaru.advancerailway.commands.station.StationMainCommand
-import dev.nikomaru.advancerailway.file.FileLoader
+import dev.nikomaru.advancerailway.storage.FileLoader
 import dev.nikomaru.advancerailway.listener.RailClickEvent
-import dev.nikomaru.advancerailway.mineauth.MineAuthIntegration
-import dev.nikomaru.advancerailway.utils.command.GroupIdParser
-import dev.nikomaru.advancerailway.utils.command.Point3DParser
-import dev.nikomaru.advancerailway.utils.command.RailwayIdParser
-import dev.nikomaru.advancerailway.utils.command.StationIdParser
+import dev.nikomaru.advancerailway.integration.mineauth.MineAuthIntegration
+import dev.nikomaru.advancerailway.domain.service.RailwayVerifier
+import dev.nikomaru.advancerailway.commands.parser.GroupIdParser
+import dev.nikomaru.advancerailway.commands.parser.Point3DParser
+import dev.nikomaru.advancerailway.commands.parser.RailwayIdParser
+import dev.nikomaru.advancerailway.commands.parser.StationIdParser
 import org.bukkit.Bukkit
 import org.bukkit.command.CommandSender
 import org.incendo.cloud.annotations.AnnotationParser
@@ -59,6 +60,8 @@ open class AdvanceRailway: SuspendingJavaPlugin() {
         ensureCommandDataFolders()
         settingMap()
         FileLoader.load()
+        // V2 路線の経路が保存時から変わっていないか、開始点＋分岐フラグから再トレースして検証する。
+        RailwayVerifier.verifyAll()
         // MineAuth が導入されていれば HTTP エンドポイントを登録する（未導入でも動作する）。
         MineAuthIntegration.register(this)
     }

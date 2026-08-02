@@ -10,12 +10,12 @@
 package dev.nikomaru.advancerailway.commands.railway
 
 import dev.nikomaru.advancerailway.commands.getOrSend
-import dev.nikomaru.advancerailway.file.type.LineType
-import dev.nikomaru.advancerailway.file.value.GroupId
-import dev.nikomaru.advancerailway.file.value.IdValidation
-import dev.nikomaru.advancerailway.file.value.RailwayId
-import dev.nikomaru.advancerailway.file.value.StationId
-import dev.nikomaru.advancerailway.utils.RailwayUtils
+import dev.nikomaru.advancerailway.storage.type.LineType
+import dev.nikomaru.advancerailway.domain.id.GroupId
+import dev.nikomaru.advancerailway.domain.id.IdValidation
+import dev.nikomaru.advancerailway.domain.id.RailwayId
+import dev.nikomaru.advancerailway.domain.id.StationId
+import dev.nikomaru.advancerailway.domain.service.RailwayUtils
 import org.bukkit.command.CommandSender
 import org.incendo.cloud.annotations.Argument
 import org.incendo.cloud.annotations.Command
@@ -34,7 +34,7 @@ class RailwayEditCommand {
         @Argument("lineType") lineType: LineType,
     ) {
         val data = RailwayUtils.getRailwayData(railwayId).getOrSend(sender) { "<red>路線が見つかりません。" } ?: return
-        data.copy(lineType = lineType).save()
+        data.copyCommon(lineType = lineType).save()
         sender.sendRichMessage("<green>種別を <white>$lineType</white> に変更しました。")
     }
 
@@ -48,7 +48,7 @@ class RailwayEditCommand {
     ) {
         val data = RailwayUtils.getRailwayData(railwayId).getOrSend(sender) { "<red>路線が見つかりません。" } ?: return
         if (group.equals("none", ignoreCase = true)) {
-            data.copy(group = null).save()
+            data.copyCommon(group = null).save()
             sender.sendRichMessage("<green>グループを解除しました。")
             return
         }
@@ -56,7 +56,7 @@ class RailwayEditCommand {
             sender.sendRichMessage("<red>グループ ID が不正です: <white>$group</white>")
             return
         }
-        data.copy(group = GroupId(group)).save()
+        data.copyCommon(group = GroupId(group)).save()
         sender.sendRichMessage("<green>グループを <white>$group</white> に設定しました。")
     }
 
@@ -69,7 +69,7 @@ class RailwayEditCommand {
         @Argument("stationId") stationId: StationId,
     ) {
         val data = RailwayUtils.getRailwayData(railwayId).getOrSend(sender) { "<red>路線が見つかりません。" } ?: return
-        data.copy(fromStation = stationId).save()
+        data.copyCommon(fromStation = stationId).save()
         sender.sendRichMessage("<green>始点駅を <white>$stationId</white> に変更しました。")
     }
 
@@ -82,7 +82,7 @@ class RailwayEditCommand {
         @Argument("stationId") stationId: StationId,
     ) {
         val data = RailwayUtils.getRailwayData(railwayId).getOrSend(sender) { "<red>路線が見つかりません。" } ?: return
-        data.copy(toStation = stationId).save()
+        data.copyCommon(toStation = stationId).save()
         sender.sendRichMessage("<green>終点駅を <white>$stationId</white> に変更しました。")
     }
 }

@@ -9,13 +9,13 @@
 
 package dev.nikomaru.advancerailway.commands.station
 
-import dev.nikomaru.advancerailway.Point3D
-import dev.nikomaru.advancerailway.file.DataPaths
-import dev.nikomaru.advancerailway.file.FileLoader
-import dev.nikomaru.advancerailway.file.data.RailwayData
-import dev.nikomaru.advancerailway.file.data.StationData
-import dev.nikomaru.advancerailway.file.value.IdValidation
-import dev.nikomaru.advancerailway.file.value.StationId
+import dev.nikomaru.advancerailway.domain.geometry.Point3D
+import dev.nikomaru.advancerailway.storage.DataPaths
+import dev.nikomaru.advancerailway.storage.FileLoader
+import dev.nikomaru.advancerailway.storage.model.RailwayData
+import dev.nikomaru.advancerailway.storage.model.StationData
+import dev.nikomaru.advancerailway.domain.id.IdValidation
+import dev.nikomaru.advancerailway.domain.id.StationId
 import dev.nikomaru.advancerailway.utils.Utils.json
 import dev.nikomaru.advancerailway.utils.Utils.toPoint3D
 import kotlinx.serialization.decodeFromString
