@@ -1,0 +1,49 @@
+---
+title: 経路 API
+description: 2 駅間の最短経路検索
+---
+
+# 経路 API
+
+`GET /route?from={id}&to={id}` は 2 駅間の最短（所要時間最小）経路を求めます。`from` / `to` は必須で、
+欠けると `400 Bad Request` を返します。
+
+## アルゴリズム
+
+ネットワークは 2 種類の辺を持つ重み付きグラフとしてモデル化し、**A\*** で最短経路を求めます。
+
+- **レール辺** — 各路線を無向辺とし、重みは `timeRequired`（秒）。方向別（`UP_LINE` / `DOWN_LINE`）の区別は未対応。
+- **徒歩辺** — 同一ワールド内の任意の 2 駅を、直線水平距離 ÷ マインクラフトの歩行速度（`4.317` ブロック/秒）で結びます。
+  これにより、レールでつながっていない駅にも到達できます。異なるワールド間はレールのみで到達可能です。
+
+## レスポンス形式（Route）
+
+```json
+{
+  "from": "central",
+  "fromName": "中央駅",
+  "to": "north",
+  "toName": "北駅",
+  "totalTime": 150,
+  "stations": ["central", "west", "north"],
+  "legs": [
+    { "mode": "RAIL", "railway": "central-to-west", "from": "central", "fromName": "中央駅", "to": "west", "toName": "西駅", "timeRequired": 60, "group": "main-line", "line": "本線" },
+    { "mode": "WALK", "railway": null, "from": "west", "fromName": "西駅", "to": "north", "toName": "北駅", "timeRequired": 90, "group": null, "line": null }
+  ]
+}
+```
+
+- `mode` は `"RAIL"`（乗車）または `"WALK"`（徒歩）。
+- `fromName` / `toName` は駅の**表示名**、`line` は路線（グループ）の**表示名**です（名前が無ければ ID にフォールバック）。表示には ID ではなくこれらを使ってください。
+- `railway` / `group` / `line` は徒歩区間では `null` です。
+- `totalTime` は全区間の `timeRequired` の合計（秒）。
+
+## エラー
+
+エラーは機械可読な `code` を持ちます。
+
+| ステータス | `code` | 条件 |
+| --- | --- | --- |
+| `404 Not Found` | `station_not_found` | `from` / `to` が存在しない駅 |
+| `400 Bad Request` | `same_station` | `from` と `to` が同じ駅 |
+| `404 Not Found` | `no_route` | 2 駅が経路でつながっていない |

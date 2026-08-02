@@ -1,0 +1,29 @@
+---
+title: 駅コマンド
+description: 駅の追加・編集・一覧
+---
+
+# 駅コマンド
+
+閲覧: `advancerailway.station.view`（全員） / 編集: `advancerailway.station.manage`（OP）
+
+## 閲覧
+
+- `ar station list [page]` — 駅の一覧をページ表示します。
+- `ar station info <stationId>` — 駅の情報を表示します。
+
+## 編集
+
+- `ar station add <id> <name> [point]` — 駅を追加します（座標省略時は現在地）。
+  - `id` : 駅の ID（英数字・`_`・`-`）
+  - `name` : 駅の表示名
+- `ar station remove <id>` — 駅を削除します（路線から参照されている場合は不可）。
+- `ar station set name <stationId> <name>` — 駅名を変更します。
+- `ar station set location <stationId> [point]` — 駅の座標を変更します。
+- `ar station set numbering <stationId> <numbering>` — 駅ナンバリングを設定します。
+- `ar station set color <stationId> <r> <g> <b>` — 駅の色を変更します（各 0〜255）。
+
+### 例
+
+- `ar station add mr01 もりもと駅` — プレイヤーの位置に駅を追加します。
+- `ar station add mr01 もりもと駅 0,64,0` — 座標 `0,64,0` に駅を追加します。

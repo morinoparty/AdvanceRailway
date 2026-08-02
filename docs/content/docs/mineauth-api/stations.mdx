@@ -1,0 +1,39 @@
+---
+title: 駅 API
+description: 駅の取得・接続路線・近傍検索
+---
+
+# 駅 API
+
+## レスポンス形式（Station）
+
+```json
+{
+  "id": "central",
+  "name": "中央駅",
+  "numbering": "M01",
+  "world": "world",
+  "point": { "x": 0.0, "y": 64.0, "z": 0.0 },
+  "overrideSize": null,
+  "color": "#FF0000"
+}
+```
+
+- `numbering` と `overrideSize` は `null` になり得ます。
+- `color` は `#RRGGBB` 形式です。
+
+## 一覧・単体取得
+
+- `GET /stations` — 全駅を一覧取得します（[ページング](/docs/mineauth-api#ページング)対応）。
+- `GET /stations/{id}` — 駅を 1 件取得します。存在しなければ `404`。
+
+## 接続する路線
+
+- `GET /stations/{id}/railways` — その駅に接続する路線（`fromStation` / `toStation` が一致）を、
+  [`/railways`](/docs/mineauth-api/railways) と同じ形式（`{ "railways": [ ... ] }`）で返します。駅が存在しなければ `404`。
+
+## 近傍の駅（Nearest station）
+
+`GET /nearest-station?world={world}&x={x}&z={z}` は、指定ワールド内で座標 `(x, z)` に最も近い駅
+（水平距離、`y` は無視）を Station 形式で返します。`world` / `x` / `z` は必須です。
+そのワールドに駅が 1 つも無い場合は `404`（`code: no_station`）。

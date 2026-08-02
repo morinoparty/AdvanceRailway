@@ -1,0 +1,28 @@
+---
+title: グループコマンド
+description: グループ（路線名・色）の管理
+---
+
+# グループコマンド
+
+閲覧: `advancerailway.group.view`（全員） / 編集: `advancerailway.group.manage`（OP）
+
+グループは「路線名」を表し、squaremap 上の色を持ちます。路線（railway）をグループにまとめることで、
+マップ上で同じ色のひとつながりの路線として表示されます。
+
+## 閲覧
+
+- `ar group list [page]` — グループの一覧をページ表示します。
+- `ar group info <groupId>` — グループの情報を表示します。
+
+## 編集
+
+- `ar group add <id> <name>` — グループ（路線）を作成します。
+- `ar group remove <id>` — グループを削除します（路線から参照されている場合は不可）。
+- `ar group set name <groupId> <name>` — グループ名を変更します。
+- `ar group set color <groupId> <r> <g> <b>` — グループ（路線）の色を変更します（各 0〜255）。
+
+### 例
+
+- `ar group add mr もりもと線` — 「もりもと線」というグループを作成します。
+- `ar railway set group mr01_mr02 mr` — 路線をグループに追加します（[路線コマンド](/docs/commands/railway)）。
