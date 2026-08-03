@@ -17,8 +17,10 @@ import dev.nikomaru.advancerailway.storage.DataPaths
 import dev.nikomaru.advancerailway.storage.FileLoader
 import dev.nikomaru.advancerailway.storage.model.RailwayData
 import dev.nikomaru.advancerailway.storage.type.LineType
+import dev.nikomaru.advancerailway.domain.id.GroupId
 import dev.nikomaru.advancerailway.domain.id.IdValidation
 import dev.nikomaru.advancerailway.domain.id.RailwayId
+import dev.nikomaru.advancerailway.domain.id.StationId
 import dev.nikomaru.advancerailway.domain.service.RailwayUtils
 import dev.nikomaru.advancerailway.domain.service.RailwayVerifier
 import dev.nikomaru.advancerailway.domain.service.StationUtils
@@ -29,6 +31,7 @@ import org.bukkit.entity.Player
 import org.incendo.cloud.annotations.Argument
 import org.incendo.cloud.annotations.Command
 import org.incendo.cloud.annotations.CommandDescription
+import org.incendo.cloud.annotations.Flag
 import org.incendo.cloud.annotations.Permission
 
 @Command("ar|advancerailway railway")
@@ -175,15 +178,35 @@ class RailwayMainCommand {
      * V2 路線の経路が保存時から変わっていないか、開始点＋分岐フラグから再トレースして検証する。
      * 以前は起動時に自動実行していたが、未ロードチャンクの同期ロードで起動が重くなるため
      * コマンドでの手動実行に変更した。失敗行の [TP] で始点駅へ飛んで現地を確認できる。
+     *
+     * `--group` / `--station` で対象を絞れる（両方指定した場合は AND）。
      */
     @Command("check")
-    @CommandDescription("全 V2 路線の経路が保存時から変わっていないか検証します")
+    @CommandDescription("V2 路線の経路が保存時から変わっていないか検証します（--group/--station で絞り込み）")
     @Permission("advancerailway.railway.manage")
-    suspend fun check(sender: CommandSender) {
+    suspend fun check(
+        sender: CommandSender,
+        @Flag(
+            value = "group",
+            aliases = ["g"],
+            description = "指定グループに属する路線だけを検証します",
+        ) group: GroupId?,
+        @Flag(
+            value = "station",
+            aliases = ["s"],
+            description = "指定駅に接続している路線だけを検証します",
+        ) station: StationId?,
+    ) {
         sender.sendRichMessage("<gray>路線の経路を検証しています…")
-        val result = RailwayVerifier.verifyAll()
+        val result = RailwayVerifier.verifyAll { data ->
+            (group == null || data.group == group) &&
+                (station == null || data.fromStation == station || data.toStation == station)
+        }
         if (result.checked == 0) {
-            sender.sendRichMessage("<yellow>検証対象の V2 路線がありません。")
+            sender.sendRichMessage(
+                if (group != null || station != null) "<yellow>条件に一致する V2 路線がありません。"
+                else "<yellow>検証対象の V2 路線がありません。"
+            )
             return
         }
         for (problem in result.problems) {

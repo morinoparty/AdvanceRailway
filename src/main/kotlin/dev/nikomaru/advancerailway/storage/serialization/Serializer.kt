@@ -66,9 +66,10 @@ object Line3DSerializer: KSerializer<Line3D> {
     override fun deserialize(decoder: Decoder): Line3D {
         val points = decoder.decodeString().split(":").map { it.drop(1) }.map { it.dropLast(1) }.map { it.split(",") }
             .map { Point3D(it[0].toDouble(), it[1].toDouble(), it[2].toDouble()) }
+        // addPoint は共線点の圧縮を伴い、保存時と点列が変わりうる（redraw 直後でも
+        // /ar railway check が「経路変化」を誤検出していた原因）。保存された点列をそのまま復元する。
         val line = Line3D(points[0], points[1])
-        points.drop(2).forEach { line.addPoint(it) }
-
+        line.points = ArrayList(points)
         return line
     }
 
