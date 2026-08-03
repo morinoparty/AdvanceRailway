@@ -38,7 +38,8 @@ object RailwayVerifier {
 
     data class Result(val checked: Int, val problems: List<Problem>)
 
-    suspend fun verifyAll(): Result {
+    /** [filter] に一致した V2 路線だけを検証する（既定は全件）。 */
+    suspend fun verifyAll(filter: (RailwayData.V2) -> Boolean = { true }): Result {
         val files = DataPaths.railways.listFiles()?.filter { it.extension == "json" } ?: return Result(0, emptyList())
         var checked = 0
         val problems = mutableListOf<Problem>()
@@ -48,7 +49,7 @@ object RailwayVerifier {
             } catch (e: Exception) {
                 continue // 壊れたファイルは RailwayDataLoader が警告済み
             }
-            if (data !is RailwayData.V2) {
+            if (data !is RailwayData.V2 || !filter(data)) {
                 continue
             }
             checked++
