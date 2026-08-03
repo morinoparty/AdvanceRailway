@@ -27,13 +27,14 @@ import org.bukkit.entity.Player
 import org.incendo.cloud.annotations.Argument
 import org.incendo.cloud.annotations.Command
 import org.incendo.cloud.annotations.CommandDescription
-import org.incendo.cloud.annotations.Default
 import org.incendo.cloud.annotations.Permission
 
 @Command("ar|advancerailway railway")
 class RailwayMainCommand {
 
     // flags は inspect の分岐フラグ（例: "EE"）。分岐点で進む方角を先頭から順に指定する。
+    // 省略可能引数は nullable で受ける。@Default("") は空文字がトークンを消費せず
+    // CommandTree の解析が無限再帰して StackOverflowError になるため使わないこと。
     @Command("add <railwayId> <startPoint> <directionPoint> <endPoint> [flags]")
     @CommandDescription("駅間の経路を計算して新しい路線を登録します（flags: 分岐点で選ぶ方角の並び。例: EE）")
     @Permission("advancerailway.railway.manage")
@@ -43,7 +44,7 @@ class RailwayMainCommand {
         @Argument("startPoint") startPoint: Point3D,
         @Argument("directionPoint") directionPoint: Point3D,
         @Argument("endPoint") endPoint: Point3D,
-        @Argument("flags") @Default("") flags: String
+        @Argument("flags") flags: String?
     ) {
         if (!IdValidation.isValid(railwayId)) {
             sender.sendRichMessage("<red>路線 ID が不正です: <white>$railwayId</white>")
@@ -62,7 +63,7 @@ class RailwayMainCommand {
         @Argument("startPoint") startPoint: Point3D,
         @Argument("directionPoint") directionPoint: Point3D,
         @Argument("endPoint") endPoint: Point3D,
-        @Argument("flags") @Default("") flags: String
+        @Argument("flags") flags: String?
     ) {
         if (!IdValidation.isValid(railwayId)) {
             sender.sendRichMessage("<red>路線 ID が不正です: <white>$railwayId</white>")
@@ -78,10 +79,10 @@ class RailwayMainCommand {
         startPoint: Point3D,
         directionPoint: Point3D,
         endPoint: Point3D,
-        flags: String,
+        flags: String?,
         action: String
     ) {
-        val branchFlags = BranchDirection.parse(flags) ?: run {
+        val branchFlags = BranchDirection.parse(flags ?: "") ?: run {
             sender.sendRichMessage("<red>分岐フラグが不正です（N/S/E/W のみ使用できます）: <white>$flags</white>")
             return
         }
