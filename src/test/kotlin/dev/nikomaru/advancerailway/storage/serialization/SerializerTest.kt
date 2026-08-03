@@ -86,6 +86,24 @@ class SerializerTest {
     }
 
     @Test
+    @DisplayName("Line3D deserialize preserves collinear points verbatim (no re-collapse)")
+    fun line3DDeserializePreservesCollinearPoints() {
+        // トレース結果には共線 3 点が残ることがある（addPoint の圧縮はカスケードを
+        // 再チェックしないため）。ロード時に addPoint を通し直すと点が減って
+        // 保存時と一致しなくなる回帰を固定する。
+        val line = Line3D(Point3D(0.0, 64.0, 0.0), Point3D(2.0, 64.0, 0.0))
+        line.points = arrayListOf(
+            Point3D(0.0, 64.0, 0.0),
+            Point3D(2.0, 64.0, 0.0),
+            Point3D(4.0, 64.0, 0.0),
+        )
+        val encoded = json.encodeToString(Line3DSerializer, line)
+        val decoded = json.decodeFromString(Line3DSerializer, encoded)
+        assertEquals(line.points, decoded.points)
+        assertEquals(encoded, json.encodeToString(Line3DSerializer, decoded))
+    }
+
+    @Test
     @DisplayName("Line3D deserialize throws on malformed input without a separator")
     fun line3DDeserializeThrowsOnMalformedInput() {
         assertThrows<Exception> {
