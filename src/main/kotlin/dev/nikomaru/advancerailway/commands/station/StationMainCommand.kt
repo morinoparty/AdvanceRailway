@@ -9,6 +9,10 @@
 
 package dev.nikomaru.advancerailway.commands.station
 
+import com.github.shynixn.mccoroutine.bukkit.minecraftDispatcher
+import dev.nikomaru.advancerailway.AdvanceRailway
+import dev.nikomaru.advancerailway.commands.esc
+import dev.nikomaru.advancerailway.commands.getOrSend
 import dev.nikomaru.advancerailway.domain.geometry.Point3D
 import dev.nikomaru.advancerailway.storage.DataPaths
 import dev.nikomaru.advancerailway.storage.FileLoader
@@ -16,8 +20,10 @@ import dev.nikomaru.advancerailway.storage.model.RailwayData
 import dev.nikomaru.advancerailway.storage.model.StationData
 import dev.nikomaru.advancerailway.domain.id.IdValidation
 import dev.nikomaru.advancerailway.domain.id.StationId
+import dev.nikomaru.advancerailway.domain.service.StationUtils
 import dev.nikomaru.advancerailway.utils.Utils.json
 import dev.nikomaru.advancerailway.utils.Utils.toPoint3D
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.decodeFromString
 import org.bukkit.Bukkit
 import org.bukkit.command.CommandSender
@@ -26,9 +32,13 @@ import org.incendo.cloud.annotations.Argument
 import org.incendo.cloud.annotations.Command
 import org.incendo.cloud.annotations.CommandDescription
 import org.incendo.cloud.annotations.Permission
+import org.koin.core.component.KoinComponent
+import org.koin.core.component.inject
 
 @Command("ar|advancerailway station")
-class StationMainCommand {
+class StationMainCommand : KoinComponent {
+
+    private val plugin: AdvanceRailway by inject()
 
     @Command("add <id> <name> [point]")
     @CommandDescription("駅を新規登録します（座標省略時は実行者の現在地）")
@@ -84,6 +94,26 @@ class StationMainCommand {
         file.delete()
         FileLoader.mapDataLoad()
         sender.sendRichMessage("<green>駅を削除しました。")
+    }
+
+    @Command("tp <id>")
+    @CommandDescription("駅の座標へテレポートします（プレイヤー専用）")
+    @Permission("advancerailway.station.tp")
+    suspend fun tp(sender: CommandSender, @Argument("id") id: StationId) {
+        if (sender !is Player) {
+            sender.sendRichMessage("<red>このコマンドはプレイヤー専用です。")
+            return
+        }
+        val data = StationUtils.getStationData(id).getOrSend(sender) { "<red>駅が見つかりません" } ?: return
+        // teleportAsync はメインスレッド専用 API のため、メインスレッドへ切り替えて呼び出す。
+        // 未ロードチャンクは teleportAsync が非同期にロードするので、サーバーを止めない。
+        withContext(plugin.minecraftDispatcher) {
+            val location = data.point.toLocation(data.world)
+            location.yaw = sender.location.yaw
+            location.pitch = sender.location.pitch
+            sender.teleportAsync(location)
+        }
+        sender.sendRichMessage("<green>駅 <white>${esc(data.name)}</white> へテレポートしました。")
     }
 
 }

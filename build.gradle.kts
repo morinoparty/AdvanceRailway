@@ -217,6 +217,7 @@ sourceSets.main {
                     default = Permission.Default.OP
                     children(
                         "advancerailway.station.manage",
+                        "advancerailway.station.tp",
                         "advancerailway.railway.manage",
                         "advancerailway.group.manage",
                         "advancerailway.file",
@@ -231,6 +232,7 @@ sourceSets.main {
                 register("advancerailway.group.view") { default = Permission.Default.TRUE }
                 // 編集・運用リーフ（OP のみ）。
                 register("advancerailway.station.manage") { default = Permission.Default.OP }
+                register("advancerailway.station.tp") { default = Permission.Default.OP }
                 register("advancerailway.railway.manage") { default = Permission.Default.OP }
                 register("advancerailway.group.manage") { default = Permission.Default.OP }
                 register("advancerailway.file") { default = Permission.Default.OP }
