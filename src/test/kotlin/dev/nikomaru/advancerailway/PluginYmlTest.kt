@@ -72,6 +72,7 @@ class PluginYmlTest {
         val opOnly = listOf(
             "advancerailway.manage",
             "advancerailway.station.manage",
+            "advancerailway.station.tp",
             "advancerailway.railway.manage",
             "advancerailway.group.manage",
             "advancerailway.file",

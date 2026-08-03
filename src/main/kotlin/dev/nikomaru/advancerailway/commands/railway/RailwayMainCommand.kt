@@ -10,6 +10,7 @@
 package dev.nikomaru.advancerailway.commands.railway
 
 
+import dev.nikomaru.advancerailway.commands.stationTpLink
 import dev.nikomaru.advancerailway.domain.geometry.Point3D
 import dev.nikomaru.advancerailway.domain.rail.BranchDirection
 import dev.nikomaru.advancerailway.storage.DataPaths
@@ -19,6 +20,7 @@ import dev.nikomaru.advancerailway.storage.type.LineType
 import dev.nikomaru.advancerailway.domain.id.IdValidation
 import dev.nikomaru.advancerailway.domain.id.RailwayId
 import dev.nikomaru.advancerailway.domain.service.RailwayUtils
+import dev.nikomaru.advancerailway.domain.service.RailwayVerifier
 import dev.nikomaru.advancerailway.domain.service.StationUtils
 import dev.nikomaru.advancerailway.utils.Utils.json
 import org.bukkit.Bukkit
@@ -144,7 +146,8 @@ class RailwayMainCommand {
             val line = RailwayUtils.getLine(data.startPoint, data.directionPoint, data.endPoint).getOrNull()
             if (line == null) {
                 sender.sendRichMessage(
-                    "<red>移行失敗: <white>${data.id.value}</white> — 経路を再トレースできません（分岐がある場合は redraw で flags を指定してください）"
+                    "<red>移行失敗: <white>${data.id.value}</white> — 経路を再トレースできません" +
+                        "（分岐がある場合は redraw で flags を指定してください） ${stationTpLink(data.fromStation)}"
                 )
                 failed++
                 continue
@@ -166,6 +169,44 @@ class RailwayMainCommand {
             migrated++
         }
         sender.sendRichMessage("<green>移行完了: 移行 $migrated 件 / スキップ（既に V2）$skipped 件 / 失敗 $failed 件")
+    }
+
+    /**
+     * V2 路線の経路が保存時から変わっていないか、開始点＋分岐フラグから再トレースして検証する。
+     * 以前は起動時に自動実行していたが、未ロードチャンクの同期ロードで起動が重くなるため
+     * コマンドでの手動実行に変更した。失敗行の [TP] で始点駅へ飛んで現地を確認できる。
+     */
+    @Command("check")
+    @CommandDescription("全 V2 路線の経路が保存時から変わっていないか検証します")
+    @Permission("advancerailway.railway.manage")
+    suspend fun check(sender: CommandSender) {
+        sender.sendRichMessage("<gray>路線の経路を検証しています…")
+        val result = RailwayVerifier.verifyAll()
+        if (result.checked == 0) {
+            sender.sendRichMessage("<yellow>検証対象の V2 路線がありません。")
+            return
+        }
+        for (problem in result.problems) {
+            val id = problem.data.id.value
+            val tp = stationTpLink(problem.data.fromStation)
+            when (problem) {
+                is RailwayVerifier.TraceFailed -> sender.sendRichMessage(
+                    "<red>再トレース失敗: <white>$id</white> (${problem.error}) — レールが変更された可能性があります $tp"
+                )
+
+                is RailwayVerifier.RouteChanged -> sender.sendRichMessage(
+                    "<red>経路変化: <white>$id</white> — 経路が保存時から変化しています $tp"
+                )
+            }
+        }
+        if (result.problems.isEmpty()) {
+            sender.sendRichMessage("<green>検証完了: ${result.checked} 件すべて変更ありませんでした。")
+        } else {
+            sender.sendRichMessage(
+                "<yellow>検証完了: ${result.checked} 件中 ${result.problems.size} 件に変更を検出しました。" +
+                    "/ar railway redraw で引き直してください。"
+            )
+        }
     }
 
     @Command("remove <railwayId>")

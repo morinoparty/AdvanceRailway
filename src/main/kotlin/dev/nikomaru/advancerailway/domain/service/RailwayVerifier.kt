@@ -10,28 +10,38 @@
 package dev.nikomaru.advancerailway.domain.service
 
 import arrow.core.Either
-import dev.nikomaru.advancerailway.AdvanceRailway
+import dev.nikomaru.advancerailway.domain.error.RailTraceError
 import dev.nikomaru.advancerailway.storage.DataPaths
 import dev.nikomaru.advancerailway.storage.model.RailwayData
 import dev.nikomaru.advancerailway.utils.Utils.json
-import org.koin.core.component.KoinComponent
-import org.koin.core.component.inject
 
 /**
- * 起動時に V2 路線の経路を検証する。
+ * V2 路線の経路を検証する（`/ar railway check` から実行）。
  * V2 は開始点＋分岐フラグから経路を再現できるため、再トレース結果が保存済みの
- * 経路と一致するかを確認し、レールが変更されていれば警告を出す。
+ * 経路と一致するかを確認し、レールが変更されていれば問題として報告する。
  *
  * 再トレースはメインスレッドで走り、未ロードのチャンクを同期ロードしうるため、
- * 起動時に一度だけ実行する（reload や save のたびには走らせない）。
+ * 起動時の自動実行はやめてコマンドでの手動実行に限定している。
  */
-object RailwayVerifier: KoinComponent {
-    private val plugin: AdvanceRailway by inject()
+object RailwayVerifier {
 
-    suspend fun verifyAll() {
-        val files = DataPaths.railways.listFiles()?.filter { it.extension == "json" } ?: return
+    /** 検証で見つかった問題。いずれも `/ar railway redraw` で引き直すと解消できる。 */
+    sealed interface Problem {
+        val data: RailwayData.V2
+    }
+
+    /** 再トレース自体が失敗した（レールが撤去・変更された可能性がある）。 */
+    data class TraceFailed(override val data: RailwayData.V2, val error: RailTraceError): Problem
+
+    /** 再トレースはできたが、経路が保存時と一致しない。 */
+    data class RouteChanged(override val data: RailwayData.V2): Problem
+
+    data class Result(val checked: Int, val problems: List<Problem>)
+
+    suspend fun verifyAll(): Result {
+        val files = DataPaths.railways.listFiles()?.filter { it.extension == "json" } ?: return Result(0, emptyList())
         var checked = 0
-        var changed = 0
+        val problems = mutableListOf<Problem>()
         for (file in files) {
             val data = try {
                 json.decodeFromString<RailwayData>(file.readText())
@@ -43,23 +53,12 @@ object RailwayVerifier: KoinComponent {
             }
             checked++
             when (val traced = RailwayUtils.getLine(data.startPoint, data.directionPoint, data.endPoint, data.flags)) {
-                is Either.Left -> {
-                    changed++
-                    plugin.logger.warning(
-                        "路線 '${data.id.value}' の経路を再トレースできませんでした (${traced.value})。レールが変更された可能性があります。/ar railway redraw で引き直してください。"
-                    )
-                }
-
+                is Either.Left -> problems += TraceFailed(data, traced.value)
                 is Either.Right -> if (traced.value.points != data.line.points) {
-                    changed++
-                    plugin.logger.warning(
-                        "路線 '${data.id.value}' の経路が保存時から変化しています。/ar railway redraw で引き直してください。"
-                    )
+                    problems += RouteChanged(data)
                 }
             }
         }
-        if (checked > 0) {
-            plugin.logger.info("V2 路線の経路検証: $checked 件中 $changed 件に変更を検出しました。")
-        }
+        return Result(checked, problems)
     }
 }

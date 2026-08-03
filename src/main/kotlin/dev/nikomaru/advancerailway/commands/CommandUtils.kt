@@ -10,6 +10,7 @@
 package dev.nikomaru.advancerailway.commands
 
 import arrow.core.Either
+import dev.nikomaru.advancerailway.domain.id.StationId
 import org.bukkit.command.CommandSender
 import java.awt.Color
 
@@ -21,6 +22,14 @@ fun esc(text: String): String = text.replace("<", "\\<")
 
 /** [Color] を MiniMessage の `<color:#RRGGBB>` で使える `#RRGGBB` 形式にする。 */
 fun Color.toHex(): String = "#%02X%02X%02X".format(red, green, blue)
+
+/**
+ * クリックで `/ar station tp` を実行して駅へ飛ぶ `[TP]` リンク（MiniMessage）。
+ * migrate / check の失敗行から現地をすぐ確認できるようにするためのもの。
+ */
+fun stationTpLink(stationId: StationId): String =
+    "<click:run_command:'/ar station tp ${stationId.value}'>" +
+        "<hover:show_text:'${stationId.value} へテレポート'><gold>[TP]</gold></hover></click>"
 
 /** 秒単位の所要時間を「分（小数第1位）」の文字列にする。route 表示と同じ換算。 */
 fun formatMinutes(timeRequiredSeconds: Long): String {
