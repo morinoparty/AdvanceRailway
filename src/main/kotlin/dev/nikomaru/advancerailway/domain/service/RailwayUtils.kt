@@ -64,6 +64,17 @@ object RailwayUtils: KoinComponent {
     }.toSet()
 
     /**
+     * 指定レールに接続しているレール座標を返す。
+     * ポイント（分岐レール）は切替状態に関係なく全ての脚を返す（[RailTracer.adjacentRails] 参照）。
+     */
+    suspend fun detectAdjacentRails(
+        point: Point3D,
+        world: World = Bukkit.getWorld("world")!!,
+    ): List<Point3D> = withContext(Dispatchers.minecraft) {
+        RailTracer.adjacentRails(point, bukkitRailWorld(world))
+    }
+
+    /**
      * クリック点から片方向へレール網を全探索し、分岐ごとの終端を列挙する。
      * 分岐で失敗せず、各終端に分岐点で選んだ方角のフラグ（例: "EE"）が付く。
      */

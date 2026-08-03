@@ -78,6 +78,49 @@ class RailTracerTest {
     }
 
     @Test
+    fun switchedJunctionDetectsBranch() {
+        // T 字路のポイントが「直進」（EAST_WEST）に切り替わっている状態。
+        // 形状だけを見ると南の脚が見えないが、南のレール（NORTH_SOUTH）が
+        // こちらへ接続しているため分岐として検出されること。
+        val rails = buildMap {
+            putAll(straightEastWest(0, 8))
+            put(p(4, 0, 1), Rail.Shape.NORTH_SOUTH)
+            put(p(4, 0, 2), Rail.Shape.NORTH_SOUTH)
+        }
+        val result = trace(FakeRailWorld(rails), p(0, 0, 0), p(1, 0, 0))
+        val endpoints = (result as Either.Right).value
+        assertEquals(2, endpoints.size)
+        val byFlags = endpoints.associateBy { it.flags }
+        assertEquals(p(8, 0, 0), byFlags[listOf(BranchDirection.EAST)]?.forward?.end)
+        assertEquals(p(4, 0, 2), byFlags[listOf(BranchDirection.SOUTH)]?.forward?.end)
+    }
+
+    @Test
+    fun parallelTrackIsNotABranch() {
+        // 隣り合う並行線（互いに向き合っていない）は接続扱いにしない。
+        val rails = buildMap {
+            putAll(straightEastWest(0, 5, z = 0))
+            putAll(straightEastWest(0, 5, z = 1))
+        }
+        val result = trace(FakeRailWorld(rails), p(0, 0, 0), p(1, 0, 0))
+        val endpoints = (result as Either.Right).value
+        assertEquals(1, endpoints.size)
+        assertEquals(emptyList<BranchDirection>(), endpoints.single().flags)
+        assertEquals(p(5, 0, 0), endpoints.single().forward.end)
+    }
+
+    @Test
+    fun adjacentRailsIncludesSwitchedLeg() {
+        // クリック地点がポイント本体の場合も、切替状態に関係なく 3 本の脚が返ること。
+        val rails = buildMap {
+            putAll(straightEastWest(3, 5))
+            put(p(4, 0, 1), Rail.Shape.NORTH_SOUTH)
+        }
+        val adjacent = RailTracer.adjacentRails(p(4, 0, 0), FakeRailWorld(rails))
+        assertEquals(setOf(p(3, 0, 0), p(5, 0, 0), p(4, 0, 1)), adjacent.toSet())
+    }
+
+    @Test
     fun singleBranchYieldsFlaggedEndpoints() {
         val rails = buildMap {
             putAll(straightEastWest(0, 4))

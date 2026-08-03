@@ -99,16 +99,39 @@ object RailTracer {
         return results.right()
     }
 
-    /** [cur] から進めるレール座標を返す（[prev] へ戻る方向は除外）。 */
-    fun nextRails(prev: Point3D, cur: Point3D, world: RailWorld): List<Point3D> {
+    /** [cur] から進めるレール座標を返す（[prev] は除外）。 */
+    fun nextRails(prev: Point3D, cur: Point3D, world: RailWorld): List<Point3D> = adjacentRails(cur, world).filter { it != prev }
+
+    /**
+     * [cur] に接続しているレール座標。
+     *
+     * 現在の形状（shape）が向いている先に加えて、**隣のレールがこちらへ接続している**場合も
+     * 接続とみなす。ポイント（分岐レール）はレバー等で形状が切り替わるため、現在の切替状態
+     * だけを見ると直進状態の T 字路などで分岐を見落とす。隣接レール側の形状から逆向きに
+     * 判定することで、切替状態に依存せず全ての脚を検出する。
+     * 隣どうしでも互いに向き合っていない並行線は接続扱いにならない。
+     */
+    fun adjacentRails(cur: Point3D, world: RailWorld): List<Point3D> {
         val shape = world.shapeAt(cur) ?: return emptyList()
-        val diff = prev.getDiff(cur)
-        return availableOffsets(shape).filterNot {
-            it.first == -diff.first.toInt() && it.second == -diff.second.toInt() && it.third == -diff.third.toInt()
-        }.map { (x, y, z) ->
+        val fromShape = availableOffsets(shape).map { (x, y, z) ->
             Point3D(cur.x + x, cur.y + y, cur.z + z)
         }.filter { world.shapeAt(it) != null }
+        val connectsBack = NEIGHBOR_OFFSETS.mapNotNull { (x, y, z) ->
+            val neighbor = Point3D(cur.x + x, cur.y + y, cur.z + z)
+            val neighborShape = world.shapeAt(neighbor) ?: return@mapNotNull null
+            val connected = availableOffsets(neighborShape).any { (nx, ny, nz) ->
+                neighbor.x + nx == cur.x && neighbor.y + ny == cur.y && neighbor.z + nz == cur.z
+            }
+            if (connected) neighbor else null
+        }
+        return (fromShape + connectsBack).distinct()
     }
+
+    /** 水平 4 方向 × 上下 1 段の近傍オフセット。 */
+    private val NEIGHBOR_OFFSETS: List<Triple<Int, Int, Int>> =
+        listOf(1 to 0, -1 to 0, 0 to 1, 0 to -1).flatMap { (dx, dz) ->
+            listOf(Triple(dx, 0, dz), Triple(dx, -1, dz), Triple(dx, 1, dz))
+        }
 
     /** レール形状ごとの進行可能オフセット (dx, dy, dz)。 */
     fun availableOffsets(shape: Rail.Shape): List<Triple<Int, Int, Int>> = when (shape) {
