@@ -172,6 +172,26 @@ class RealDataRouteTest {
     }
 
     @Test
+    @DisplayName("rail-only mode (walk <= 20 seconds) routes fti -> akmt with every walk leg within the limit")
+    fun railOnlyRoute() {
+        val result = RouteFinder.findRoute(
+            stations, railways, Waypoint.Station(node("fti")), node("akmt"),
+            maxWalkSeconds = RouteFinder.RAIL_ONLY_MAX_WALK_SECONDS,
+        )
+        assertInstanceOf(Either.Right::class.java, result, "expected a rail-only route but got $result")
+        val route = (result as Either.Right).value
+
+        assertTrue(route.legs.isNotEmpty())
+        // 徒歩区間が残る場合も、すべて 1 分以内の乗り換えでなければならない。
+        route.legs.filter { it.mode == TravelMode.WALK }.forEach { leg ->
+            assertTrue(
+                leg.timeSeconds <= RouteFinder.RAIL_ONLY_MAX_WALK_SECONDS.toLong(),
+                "walk leg to ${leg.to.value} takes ${leg.timeSeconds}s, over the rail-only limit",
+            )
+        }
+    }
+
+    @Test
     @DisplayName("routes between two rail-connected stations of the real network")
     fun directRailNeighbours() {
         // Pick a real railway whose endpoints are both known stations, and route between them.

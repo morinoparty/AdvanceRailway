@@ -35,6 +35,7 @@ import org.bukkit.entity.Player
 import org.incendo.cloud.annotations.Argument
 import org.incendo.cloud.annotations.Command
 import org.incendo.cloud.annotations.CommandDescription
+import org.incendo.cloud.annotations.Flag
 import org.incendo.cloud.annotations.Permission
 
 /**
@@ -45,6 +46,10 @@ import org.incendo.cloud.annotations.Permission
  *
  * 全路線（レール）と、同一ワールド内の徒歩移動を組み合わせた幾何グラフを [RouteFinder] に渡し、
  * A* で最短経路を求める。レールでつながっていない駅どうしや現在地からでも徒歩で到達できる。
+ *
+ * `--rail-only`（`-r`）フラグを付けると、駅間の徒歩（乗り換え・目的駅への徒歩）を
+ * [RouteFinder.RAIL_ONLY_MAX_WALK_SECONDS]（徒歩 20 秒）以内に制限し、できる限り鉄道だけの経路を探す。
+ * 現在地から最初の駅までの徒歩は制限しない。
  */
 @Command("ar|advancerailway railway")
 class RailwayRouteCommand {
@@ -57,6 +62,9 @@ class RailwayRouteCommand {
      * 引数が 1 つのときは末尾省略として現在地を起点にする（[second] が null）。
      * 2 つのときは `first` を出発駅、[second] を到着駅として扱う。
      * Cloud では任意引数 `[second]` を末尾に置くことで両形式を 1 メソッドで受ける。
+     *
+     * `--rail-only` は presence フラグ。省略可能引数の後ろでも解析できるよう、
+     * マネージャ側で [org.incendo.cloud.setting.ManagerSetting.LIBERAL_FLAG_PARSING] を有効にしている。
      */
     @Command("route <first> [second]")
     @CommandDescription("2 駅間（または現在地から）の最短経路を表示します")
@@ -65,6 +73,11 @@ class RailwayRouteCommand {
         sender: CommandSender,
         @Argument("first") first: StationId,
         @Argument("second") second: StationId?,
+        @Flag(
+            value = "rail-only",
+            aliases = ["r"],
+            description = "駅間の徒歩を 20 秒以内に制限し、できる限り鉄道だけの経路を探します",
+        ) railOnly: Boolean,
     ) {
         val stationData = loadAllStationData()
         val stations = stationData.map { it.toNode() }
@@ -80,7 +93,7 @@ class RailwayRouteCommand {
                 return
             }
             val origin = Waypoint.Origin(player.location.world.name, player.location.toPoint3D())
-            search(sender, stations, stationNames, "現在地", origin, toNode)
+            search(sender, stations, stationNames, "現在地", origin, toNode, railOnly)
         } else {
             // route <from> <to>: 駅から駅へ。
             val fromNode = stations.find { it.id == first } ?: run {
@@ -92,7 +105,7 @@ class RailwayRouteCommand {
                 return
             }
             val originLabel = stationNames[first]?.takeIf { it.isNotBlank() } ?: first.value
-            search(sender, stations, stationNames, originLabel, Waypoint.Station(fromNode), toNode)
+            search(sender, stations, stationNames, originLabel, Waypoint.Station(fromNode), toNode, railOnly)
         }
     }
 
@@ -103,16 +116,23 @@ class RailwayRouteCommand {
         originLabel: String,
         from: Waypoint,
         to: StationNode,
+        railOnly: Boolean,
     ) {
         val railways = loadAllRailways()
         val groupNames = loadGroupNames()
-        when (val result = RouteFinder.findRoute(stations, railways, from, to)) {
+        val maxWalkSeconds = if (railOnly) RouteFinder.RAIL_ONLY_MAX_WALK_SECONDS else null
+        when (val result = RouteFinder.findRoute(stations, railways, from, to, maxWalkSeconds = maxWalkSeconds)) {
             is Either.Left -> when (result.value) {
                 RouteError.SameStation ->
                     sender.sendRichMessage("<red>出発駅と到着駅が同じです。")
 
-                RouteError.NoPath ->
-                    sender.sendRichMessage("<red>${stationNames[to.id] ?: to.id.value} への経路が見つかりませんでした。")
+                RouteError.NoPath -> {
+                    val hint =
+                        if (railOnly) "<gray>（--rail-only 指定中: 徒歩 20 秒以内の乗り換えでは到達できません）" else ""
+                    sender.sendRichMessage(
+                        "<red>${stationNames[to.id] ?: to.id.value} への経路が見つかりませんでした。$hint"
+                    )
+                }
             }
 
             is Either.Right -> {

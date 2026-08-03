@@ -104,6 +104,7 @@ sealed interface RouteError {
  * - **徒歩辺**: 同一ワールドの任意のノード間を直線水平距離（[Point3D.distanceTo2D]）÷ [walkSpeed] 秒で結ぶ。
  *   これにより、レールで直接つながっていない駅どうしや現在地からでも「歩いて」到達できる。
  *   異なるワールド間は徒歩不可（座標系が異なるため）。
+ *   `maxWalkSeconds` を指定すると駅間の徒歩辺をその所要時間以内に制限できる（レール優先モード）。
  *
  * ヒューリスティックは「終点までの直線距離 ÷ グラフ内の最大移動速度」。どの辺も
  * 「直線変位 ÷ 最大速度」より速くは進めないため許容的（admissible）であり、A* は最短経路を保証する。
@@ -114,6 +115,12 @@ object RouteFinder {
 
     /** Minecraft の既定の歩行速度（ブロック / 秒）。 */
     const val DEFAULT_WALK_SPEED: Double = 4.317
+
+    /**
+     * レール優先（`--rail-only`）モードで許容する駅間徒歩の最大所要時間（秒）。
+     * 徒歩 20 秒以内で移動できる乗り換え・目的駅への徒歩だけを許し、それ以上の徒歩を禁止する。
+     */
+    const val RAIL_ONLY_MAX_WALK_SECONDS: Double = 20.0
 
     /** 現在地ノードの内部キー。ID の allowlist（`[A-Za-z0-9_-]`）に含まれない文字を使い駅と衝突させない。 */
     private const val ORIGIN_KEY = "@origin"
@@ -143,6 +150,9 @@ object RouteFinder {
      * @param from 起点（駅または現在地）。
      * @param to 終点となる駅。
      * @param walkSpeed 歩行速度（ブロック / 秒）。
+     * @param maxWalkSeconds 駅から駅への徒歩辺を張る最大所要時間（秒）。`null` なら無制限。
+     *   起点が現在地（[Waypoint.Origin]）の場合、現在地から駅への徒歩には適用しない
+     *   （適用すると駅の近くに居ない限り経路が引けなくなるため）。
      */
     fun findRoute(
         stations: List<StationNode>,
@@ -150,6 +160,7 @@ object RouteFinder {
         from: Waypoint,
         to: StationNode,
         walkSpeed: Double = DEFAULT_WALK_SPEED,
+        maxWalkSeconds: Double? = null,
     ): Either<RouteError, Route> {
         val fromStationId = (from as? Waypoint.Station)?.node?.id
         if (fromStationId != null && fromStationId == to.id) return RouteError.SameStation.left()
@@ -181,7 +192,9 @@ object RouteFinder {
             val current = nodeByKey.getValue(key)
             val baseG = gScore.getValue(key)
 
-            for ((neighbor, incomingEdge) in neighbors(current, stationNodes, nodeByKey, railAdjacency, walkSpeed)) {
+            for ((neighbor, incomingEdge) in neighbors(
+                current, stationNodes, nodeByKey, railAdjacency, walkSpeed, maxWalkSeconds
+            )) {
                 if (neighbor.key in settled) continue
                 val tentative = baseG + incomingEdge.cost
                 if (tentative < (gScore[neighbor.key] ?: Double.MAX_VALUE)) {
@@ -227,6 +240,7 @@ object RouteFinder {
         nodeByKey: Map<String, Node>,
         railAdjacency: Map<String, List<RailEdge>>,
         walkSpeed: Double,
+        maxWalkSeconds: Double?,
     ): List<Pair<Node, Incoming>> {
         val result = ArrayList<Pair<Node, Incoming>>()
 
@@ -250,13 +264,16 @@ object RouteFinder {
         for (neighbor in stationNodes) {
             if (neighbor.key == current.key) continue
             if (neighbor.world != current.world) continue
+            val walkSeconds = current.point.distanceTo2D(neighbor.point) / walkSpeed
+            // 駅間の徒歩は maxWalkSeconds 以内に制限する（現在地からの徒歩は制限しない）。
+            if (maxWalkSeconds != null && current.stationId != null && walkSeconds > maxWalkSeconds) continue
             result += neighbor to Incoming(
                 fromKey = current.key,
                 mode = TravelMode.WALK,
                 railwayId = null,
                 fromStation = current.stationId,
                 toStation = neighbor.stationId!!, // stationNodes は必ず駅。
-                cost = current.point.distanceTo2D(neighbor.point) / walkSpeed,
+                cost = walkSeconds,
                 group = null,
             )
         }

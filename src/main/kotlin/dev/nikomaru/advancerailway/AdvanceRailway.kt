@@ -121,6 +121,9 @@ open class AdvanceRailway: SuspendingJavaPlugin() {
         }
 
         commandManager.settings().set(ManagerSetting.ALLOW_UNSAFE_REGISTRATION, true)
+        // フラグを最後のリテラル直後から解析させる。これが無いと、省略可能引数の後ろに置いたフラグ
+        // （例: /ar railway route <to> --rail-only）が省略可能引数のパーサーに食われてしまう。
+        commandManager.settings().set(ManagerSetting.LIBERAL_FLAG_PARSING, true)
 
         // ID・座標のカスタムパーサを登録する（補完＝表示名、解決＝名前 or ID）。
         with(commandManager.parserRegistry()) {

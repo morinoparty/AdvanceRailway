@@ -203,6 +203,69 @@ class RouteFinderTest {
     }
 
     @Test
+    @DisplayName("maxWalkSeconds rejects a walking transfer longer than the limit between two rail segments")
+    fun maxWalkSecondsBlocksLongTransfer() {
+        val a = station("a", 0.0, 0.0)
+        val b = station("b", 1000.0, 0.0)
+        val c = station("c", 1500.0, 0.0) // 500 blocks from b -> ~116s walk, over the 60s limit
+        val d = station("d", 2500.0, 0.0)
+        val rails = listOf(rail("ab", a, b, 10), rail("cd", c, d, 10))
+
+        // Without the limit, the b -> c walk bridges the two rail segments.
+        rightOrFail(RouteFinder.findRoute(listOf(a, b, c, d), rails, Waypoint.Station(a), d))
+        // With a 60-second limit, the ~116s transfer is forbidden and no path remains.
+        assertEquals(
+            RouteError.NoPath,
+            leftOf(RouteFinder.findRoute(listOf(a, b, c, d), rails, Waypoint.Station(a), d, maxWalkSeconds = 60.0))
+        )
+    }
+
+    @Test
+    @DisplayName("maxWalkSeconds rejects walking the last stretch to the destination")
+    fun maxWalkSecondsBlocksFinalWalk() {
+        val a = station("a", 0.0, 0.0)
+        val b = station("b", 1000.0, 0.0)
+        val c = station("c", 1500.0, 0.0) // destination, only reachable by a ~116s walk
+        val rails = listOf(rail("ab", a, b, 10))
+
+        assertEquals(
+            RouteError.NoPath,
+            leftOf(RouteFinder.findRoute(listOf(a, b, c), rails, Waypoint.Station(a), c, maxWalkSeconds = 60.0))
+        )
+    }
+
+    @Test
+    @DisplayName("maxWalkSeconds still allows a transfer walk within the limit")
+    fun maxWalkSecondsAllowsShortTransfer() {
+        val a = station("a", 0.0, 0.0)
+        val b = station("b", 1000.0, 0.0)
+        val b2 = station("b2", 1100.0, 0.0) // 100 blocks from b -> ~23s walk, within the 60s limit
+        val c = station("c", 2100.0, 0.0)
+        val rails = listOf(rail("ab", a, b, 10), rail("b2c", b2, c, 10))
+
+        val route = rightOrFail(
+            RouteFinder.findRoute(listOf(a, b, b2, c), rails, Waypoint.Station(a), c, maxWalkSeconds = 60.0)
+        )
+        assertEquals(listOf(TravelMode.RAIL, TravelMode.WALK, TravelMode.RAIL), route.legs.map { it.mode })
+        assertEquals(listOf("a", "b", "b2", "c"), route.stations.map { it.value })
+    }
+
+    @Test
+    @DisplayName("maxWalkSeconds does not restrict the walk from the origin to the first station")
+    fun maxWalkSecondsExemptsOrigin() {
+        val a = station("a", 500.0, 0.0)
+        val b = station("b", 2000.0, 0.0)
+        val origin = Waypoint.Origin("world", Point3D(0.0, 64.0, 0.0)) // 500 blocks (~116s) from a
+
+        val route = rightOrFail(
+            RouteFinder.findRoute(listOf(a, b), listOf(rail("ab", a, b, 10)), origin, b, maxWalkSeconds = 60.0)
+        )
+        assertEquals(TravelMode.WALK, route.legs.first().mode)
+        assertNull(route.legs.first().from) // starts from the current location
+        assertEquals(TravelMode.RAIL, route.legs.last().mode)
+    }
+
+    @Test
     @DisplayName("returns SameStation when from equals to")
     fun sameStation() {
         val a = station("a", 0.0, 0.0)
