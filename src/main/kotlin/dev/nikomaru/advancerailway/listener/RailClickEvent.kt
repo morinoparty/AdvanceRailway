@@ -50,18 +50,17 @@ class RailClickEvent: Listener {
             player.sendRichMessage("<gray>線路を探索しています...")
             val locate = block.location
             val startPoint = locate.let { Point3D(it.x, it.y, it.z) }
-            val availableLocations = RailwayUtils.getRailAvailableDirection(blockState.shape).map { (x, y, z) ->
-                locate.clone().add(x.toDouble(), y.toDouble(), z.toDouble())
-            }
-            val detectedRailLocations = availableLocations.filter { it.block.blockData is Rail }
-            if (detectedRailLocations.count() == 1) {
+            // クリック地点の隣接検出も探索と同じロジックを使い、ポイントの切替状態に
+            // 依存せず全ての脚から探索を開始する。
+            val adjacentRails = RailwayUtils.detectAdjacentRails(startPoint, player.world)
+            if (adjacentRails.count() == 1) {
                 player.sendRichMessage("<gray>このレールは線路の端です。")
             } else {
                 player.sendRichMessage("<gray>このレールは線路の途中です。")
             }
-            val res = detectedRailLocations.map { detectedPlace ->
+            val res = adjacentRails.map { detectedPlace ->
                 async {
-                    railEndpointInspect(startPoint, detectedPlace.let { Point3D(it.x, it.y, it.z) }, player.world)
+                    railEndpointInspect(startPoint, detectedPlace, player.world)
                 }
             }.awaitAll()
             res.forEach { result ->
