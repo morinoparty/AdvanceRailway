@@ -211,6 +211,119 @@ class RailTracerTest {
         assertEquals(RailTraceError.ATTACHED_TO_LIMIT, (result as Either.Left).value)
     }
 
+    /**
+     * 待避線パターン: (3,0,0) で本線（東）と待避線（南）に分かれ、(7,0,0) で合流して
+     * (10,0,0) まで続く。合流の先の終端は本線経由 (EE) と待避線経由 (SE) の両方で
+     * 到達できるため、どちらの flags でも列挙されること（visited を全経路で共有すると
+     * 後着側が合流地点で LOOP 終端になり、片方しか出てこない）。
+     */
+    private fun passingLoopWorld(): FakeRailWorld {
+        val rails = buildMap {
+            putAll(straightEastWest(0, 2))
+            put(p(3, 0, 0), Rail.Shape.SOUTH_EAST)
+            put(p(3, 0, 1), Rail.Shape.NORTH_EAST)
+            putAll(straightEastWest(4, 6, z = 1))
+            put(p(7, 0, 1), Rail.Shape.NORTH_WEST)
+            putAll(straightEastWest(4, 6))
+            put(p(7, 0, 0), Rail.Shape.SOUTH_WEST)
+            putAll(straightEastWest(8, 10))
+        }
+        return FakeRailWorld(rails)
+    }
+
+    @Test
+    fun passingLoopYieldsBothRoutesToFarEndpoint() {
+        val result = trace(passingLoopWorld(), p(0, 0, 0), p(1, 0, 0))
+        val endpoints = (result as Either.Right).value
+        val byFlagString = endpoints.associateBy { it.flagString() }
+        // 本線経由・待避線経由の両方で合流先の終端に到達できること
+        assertEquals(p(10, 0, 0), byFlagString["EE"]?.forward?.end)
+        assertEquals(EndpointKind.RAIL_END, byFlagString["EE"]?.kind)
+        assertEquals(p(10, 0, 0), byFlagString["SE"]?.forward?.end)
+        assertEquals(EndpointKind.RAIL_END, byFlagString["SE"]?.kind)
+        // 折り返してクリック地点側へ戻る経路と、自経路内で一周する LOOP も列挙される
+        assertEquals(p(0, 0, 0), byFlagString["ESW"]?.forward?.end)
+        assertEquals(p(0, 0, 0), byFlagString["SWW"]?.forward?.end)
+        assertEquals(EndpointKind.LOOP, byFlagString["ESE"]?.kind)
+        assertEquals(EndpointKind.LOOP, byFlagString["SWS"]?.kind)
+        assertEquals(6, endpoints.size)
+    }
+
+    @Test
+    fun traceAllIncludesDepartureDirectionInFlags() {
+        val world = FakeRailWorld(straightEastWest(0, 10))
+        val result = RailTracer.traceAll(p(5, 0, 0), world, emptySet(), 1000, 16)
+        val endpoints = (result as Either.Right).value
+        assertEquals(2, endpoints.size)
+        val byFlagString = endpoints.associateBy { it.flagString() }
+        assertEquals(p(10, 0, 0), byFlagString["E"]?.forward?.end)
+        assertEquals(p(0, 0, 0), byFlagString["W"]?.forward?.end)
+    }
+
+    @Test
+    fun traceAllPrependsDepartureToBranchFlags() {
+        val rails = buildMap {
+            putAll(straightEastWest(0, 8))
+            put(p(4, 0, 1), Rail.Shape.NORTH_SOUTH)
+            put(p(4, 0, 2), Rail.Shape.NORTH_SOUTH)
+        }
+        val result = RailTracer.traceAll(p(0, 0, 0), FakeRailWorld(rails), emptySet(), 1000, 16)
+        val endpoints = (result as Either.Right).value
+        val byFlagString = endpoints.associateBy { it.flagString() }
+        assertEquals(p(8, 0, 0), byFlagString["EE"]?.forward?.end)
+        assertEquals(p(4, 0, 2), byFlagString["ES"]?.forward?.end)
+    }
+
+    @Test
+    fun findRoutesOnStraightLine() {
+        val world = FakeRailWorld(straightEastWest(0, 10))
+        val result = RailTracer.findRoutes(p(0, 0, 0), p(10, 0, 0), world, emptySet(), 1000, 16)
+        val routes = (result as Either.Right).value
+        assertEquals(1, routes.size)
+        assertEquals("E", routes.single().flagString())
+        assertEquals(10, routes.single().steps)
+    }
+
+    @Test
+    fun findRoutesEnumeratesAllRoutesThroughPassingLoop() {
+        val result = RailTracer.findRoutes(p(0, 0, 0), p(10, 0, 0), passingLoopWorld(), emptySet(), 1000, 16)
+        val routes = (result as Either.Right).value
+        val byFlagString = routes.associateBy { it.flagString() }
+        // 先頭は出発方角 (E)、以降が (3,0,0)・(7,0,0) の分岐で選ぶ方角
+        assertEquals(setOf("EEE", "ESE"), byFlagString.keys)
+        assertEquals(10, byFlagString["EEE"]?.steps)
+        assertEquals(12, byFlagString["ESE"]?.steps)
+    }
+
+    @Test
+    fun findRoutesReturnsEmptyWhenUnreachable() {
+        val world = FakeRailWorld(straightEastWest(0, 10))
+        val result = RailTracer.findRoutes(p(0, 0, 0), p(20, 0, 5), world, emptySet(), 1000, 16)
+        assertEquals(emptyList<RouteCandidate>(), (result as Either.Right).value)
+    }
+
+    @Test
+    fun findRoutesDiscardsRoutesThroughStopBlock() {
+        val world = FakeRailWorld(
+            rails = straightEastWest(0, 10),
+            below = mapOf(p(5, 0, 0) to Material.GOLD_BLOCK),
+        )
+        val blocked = RailTracer.findRoutes(p(0, 0, 0), p(10, 0, 0), world, setOf(Material.GOLD_BLOCK), 1000, 16)
+        assertEquals(emptyList<RouteCandidate>(), (blocked as Either.Right).value)
+        // 終点自体が stopBlock 上なら到達扱い
+        val toStop = RailTracer.findRoutes(p(0, 0, 0), p(5, 0, 0), world, setOf(Material.GOLD_BLOCK), 1000, 16)
+        assertEquals("E", (toStop as Either.Right).value.single().flagString())
+    }
+
+    @Test
+    fun branchDirectionFromPoints() {
+        assertEquals(BranchDirection.EAST, BranchDirection.fromPoints(p(0, 0, 0), p(1, 0, 0)))
+        assertEquals(BranchDirection.WEST, BranchDirection.fromPoints(p(0, 0, 0), p(-1, 0, 0)))
+        assertEquals(BranchDirection.SOUTH, BranchDirection.fromPoints(p(0, 0, 0), p(0, 0, 1)))
+        assertEquals(BranchDirection.NORTH, BranchDirection.fromPoints(p(0, 0, 0), p(0, -1, -1)))
+        assertNull(BranchDirection.fromPoints(p(0, 0, 0), p(0, 0, 0)))
+    }
+
     @Test
     fun branchDirectionFromOffsets() {
         assertEquals(BranchDirection.EAST, BranchDirection.from(1, 0))

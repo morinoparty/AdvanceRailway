@@ -9,6 +9,8 @@
 
 package dev.nikomaru.advancerailway.domain.rail
 
+import dev.nikomaru.advancerailway.domain.geometry.Point3D
+
 /**
  * 分岐点で選んだ進行方角。Minecraft 座標系では dx=+1 が東、dz=+1 が南。
  */
@@ -23,6 +25,10 @@ enum class BranchDirection(val label: String) {
             dz < 0 -> NORTH
             else -> null
         }
+
+        /** [start] から隣接レール [adjacent] へ進むときの方角。同一座標なら null。 */
+        fun fromPoints(start: Point3D, adjacent: Point3D): BranchDirection? =
+            from((adjacent.x - start.x).toInt(), (adjacent.z - start.z).toInt())
 
         /** "EE" のようなフラグ文字列を方角列に変換する。不正な文字が含まれる場合は null。 */
         fun parse(flags: String): List<BranchDirection>? {
@@ -58,6 +64,19 @@ data class BranchEndpoint(
     val forward: InspectData,
     /** start=終端, direction=終端の1つ手前, end=クリック点 */
     val backward: InspectData,
+) {
+    fun flagString(): String = flags.joinToString("") { it.label }
+}
+
+/**
+ * [RailTracer.findRoutes] が見つけた、2点間を結ぶ経路の候補。
+ *
+ * [flags] の先頭は始点からの出発方角で、以降は各分岐点で選ぶ方角
+ * （`/ar railway add` の flags 引数と同じ形式）。[steps] は通過レール数（≒長さ）。
+ */
+data class RouteCandidate(
+    val flags: List<BranchDirection>,
+    val steps: Int,
 ) {
     fun flagString(): String = flags.joinToString("") { it.label }
 }
