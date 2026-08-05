@@ -32,13 +32,26 @@ interface RailWorld {
  */
 object RailTracer {
 
-    private data class Frame(val prev: Point3D, val cur: Point3D, val flags: List<BranchDirection>)
+    /**
+     * 探索中の1経路。[visited] は経路ごとに独立させる。
+     * 全経路で共有すると、複線・待避線の合流地点で後着の経路が LOOP として
+     * 途中終端になり、その先の本来の終端（と flags の組）が列挙されない。
+     */
+    private data class Frame(
+        val prev: Point3D,
+        val cur: Point3D,
+        val firstLeg: Point3D,
+        val flags: List<BranchDirection>,
+        val visited: HashSet<Pair<Point3D, Point3D>>,
+        val steps: Int,
+    )
 
     /**
      * [first] から [directionPoint] 方向へレールをたどり、全分岐を探索して終端を列挙する。
+     * flags に出発方角は含まれない（呼び出し側が方向を固定しているため）。
      *
      * - [limit] は探索全体の総ステップ予算（メインスレッド占有時間の上限）。
-     * - 同じ有向エッジは一度しか歩かないため、環状線路や合流は [EndpointKind.LOOP] で終端化される。
+     * - 経路が自分自身の通過エッジに戻ると [EndpointKind.LOOP] で終端化される。
      * - レール直下が [stopBlocks] のブロックなら [EndpointKind.STOP_BLOCK] で終端化する。
      */
     fun trace(
@@ -48,50 +61,157 @@ object RailTracer {
         stopBlocks: Set<Material>,
         limit: Long,
         maxEndpoints: Int,
+    ): Either<RailTraceError, List<BranchEndpoint>> = explore(
+        first = first,
+        seeds = listOf(Frame(first, directionPoint, directionPoint, emptyList(), hashSetOf(), 0)),
+        world = world,
+        stopBlocks = stopBlocks,
+        limit = limit,
+        maxEndpoints = maxEndpoints,
+    )
+
+    /**
+     * [first] に接続する全方向へ探索し、終端を列挙する（inspect 用）。
+     * 各終端の flags の先頭は [first] からの出発方角で、以降が分岐点で選んだ方角。
+     * `/ar railway add` の flags 引数にそのまま使える形式。
+     */
+    fun traceAll(
+        first: Point3D,
+        world: RailWorld,
+        stopBlocks: Set<Material>,
+        limit: Long,
+        maxEndpoints: Int,
+    ): Either<RailTraceError, List<BranchEndpoint>> {
+        val seeds = adjacentRails(first, world).mapNotNull { leg ->
+            val flag = BranchDirection.fromPoints(first, leg) ?: return@mapNotNull null
+            Frame(first, leg, leg, listOf(flag), hashSetOf(), 0)
+        }
+        return explore(first, seeds, world, stopBlocks, limit, maxEndpoints)
+    }
+
+    private fun explore(
+        first: Point3D,
+        seeds: List<Frame>,
+        world: RailWorld,
+        stopBlocks: Set<Material>,
+        limit: Long,
+        maxEndpoints: Int,
     ): Either<RailTraceError, List<BranchEndpoint>> {
         val results = mutableListOf<BranchEndpoint>()
-        val visitedEdges = hashSetOf<Pair<Point3D, Point3D>>()
-        val stack = ArrayDeque<Frame>()
-        stack.addLast(Frame(first, directionPoint, emptyList()))
+        val stack = ArrayDeque(seeds)
         var steps = 0L
 
-        fun endpoint(kind: EndpointKind, prev: Point3D, cur: Point3D, flags: List<BranchDirection>) = BranchEndpoint(
-            flags = flags,
+        fun endpoint(kind: EndpointKind, frame: Frame) = BranchEndpoint(
+            flags = frame.flags,
             kind = kind,
-            forward = InspectData(first, directionPoint, cur),
-            backward = InspectData(cur, prev, first),
+            forward = InspectData(first, frame.firstLeg, frame.cur),
+            backward = InspectData(frame.cur, frame.prev, first),
         )
 
         while (stack.isNotEmpty()) {
-            var (prev, cur, flags) = stack.removeLast()
+            var frame = stack.removeLast()
             while (true) {
                 if (++steps > limit) {
                     return RailTraceError.ATTACHED_TO_LIMIT.left()
                 }
-                if (!visitedEdges.add(prev to cur)) {
-                    results.add(endpoint(EndpointKind.LOOP, prev, cur, flags))
+                if (!frame.visited.add(frame.prev to frame.cur)) {
+                    results.add(endpoint(EndpointKind.LOOP, frame))
                     break
                 }
-                if (world.materialBelow(cur) in stopBlocks) {
-                    results.add(endpoint(EndpointKind.STOP_BLOCK, prev, cur, flags))
+                if (world.materialBelow(frame.cur) in stopBlocks) {
+                    results.add(endpoint(EndpointKind.STOP_BLOCK, frame))
                     break
                 }
-                val rails = nextRails(prev, cur, world)
+                val rails = nextRails(frame.prev, frame.cur, world)
                 if (rails.isEmpty()) {
-                    results.add(endpoint(EndpointKind.RAIL_END, prev, cur, flags))
+                    results.add(endpoint(EndpointKind.RAIL_END, frame))
                     break
                 }
                 if (rails.size == 1) {
-                    prev = cur
-                    cur = rails.first()
+                    frame = frame.copy(prev = frame.cur, cur = rails.first())
                     continue
                 }
                 if (results.size + stack.size + rails.size > maxEndpoints) {
                     return RailTraceError.ATTACHED_TO_LIMIT.left()
                 }
                 for (next in rails) {
-                    val flag = BranchDirection.from((next.x - cur.x).toInt(), (next.z - cur.z).toInt()) ?: continue
-                    stack.addLast(Frame(cur, next, flags + flag))
+                    val flag = BranchDirection.fromPoints(frame.cur, next) ?: continue
+                    stack.addLast(
+                        frame.copy(
+                            prev = frame.cur,
+                            cur = next,
+                            flags = frame.flags + flag,
+                            visited = HashSet(frame.visited),
+                        )
+                    )
+                }
+                break
+            }
+        }
+        return results.right()
+    }
+
+    /**
+     * [first] から [end] へ到達できる経路を全方向・全分岐について列挙する。
+     * 各候補の flags は先頭が出発方角、以降が分岐点で選ぶ方角（add の flags と同形式）。
+     *
+     * 行き止まり・経路内ループ・終点以外の stopBlock に当たった経路は棄却する。
+     * 総ステップ数が [limit] を超えるか、候補が [maxRoutes] を超えると打ち切りエラー。
+     */
+    fun findRoutes(
+        first: Point3D,
+        end: Point3D,
+        world: RailWorld,
+        stopBlocks: Set<Material>,
+        limit: Long,
+        maxRoutes: Int,
+    ): Either<RailTraceError, List<RouteCandidate>> {
+        val results = mutableListOf<RouteCandidate>()
+        val stack = ArrayDeque(
+            adjacentRails(first, world).mapNotNull { leg ->
+                val flag = BranchDirection.fromPoints(first, leg) ?: return@mapNotNull null
+                Frame(first, leg, leg, listOf(flag), hashSetOf(), 1)
+            }
+        )
+        var steps = 0L
+        while (stack.isNotEmpty()) {
+            var frame = stack.removeLast()
+            while (true) {
+                if (++steps > limit) {
+                    return RailTraceError.ATTACHED_TO_LIMIT.left()
+                }
+                if (!frame.visited.add(frame.prev to frame.cur)) {
+                    break
+                }
+                if (frame.cur == end) {
+                    if (results.size >= maxRoutes) {
+                        return RailTraceError.ATTACHED_TO_LIMIT.left()
+                    }
+                    results.add(RouteCandidate(frame.flags, frame.steps))
+                    break
+                }
+                if (world.materialBelow(frame.cur) in stopBlocks) {
+                    break
+                }
+                val rails = nextRails(frame.prev, frame.cur, world)
+                if (rails.isEmpty()) {
+                    break
+                }
+                if (rails.size == 1) {
+                    frame = frame.copy(prev = frame.cur, cur = rails.first(), steps = frame.steps + 1)
+                    continue
+                }
+                for (next in rails) {
+                    val flag = BranchDirection.fromPoints(frame.cur, next) ?: continue
+                    stack.addLast(
+                        frame.copy(
+                            prev = frame.cur,
+                            cur = next,
+                            flags = frame.flags + flag,
+                            visited = HashSet(frame.visited),
+                            steps = frame.steps + 1,
+                        )
+                    )
                 }
                 break
             }
