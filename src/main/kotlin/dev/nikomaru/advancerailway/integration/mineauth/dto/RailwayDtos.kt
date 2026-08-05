@@ -54,7 +54,6 @@ data class RailwayDto(
     val timeRequired: Long,
     val startPoint: PointDto,
     val endPoint: PointDto,
-    val directionPoint: PointDto,
 )
 
 /** グループ情報。 */

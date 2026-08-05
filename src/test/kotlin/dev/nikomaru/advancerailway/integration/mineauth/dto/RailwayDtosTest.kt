@@ -64,7 +64,6 @@ class RailwayDtosTest {
             timeRequired = 120L,
             startPoint = PointDto(0.0, 0.0, 0.0),
             endPoint = PointDto(10.0, 0.0, 5.0),
-            directionPoint = PointDto(1.0, 0.0, 0.0),
         )
 
         val encoded = json.encodeToString(RailwayDto.serializer(), dto)

@@ -363,7 +363,6 @@ class RailwayApiHandler {
         timeRequired = timeRequired,
         startPoint = RailwayDtoMapper.toPointDto(startPoint),
         endPoint = RailwayDtoMapper.toPointDto(endPoint),
-        directionPoint = RailwayDtoMapper.toPointDto(directionPoint),
     )
 
     private fun GroupData.toDto(): GroupDto = GroupDto(

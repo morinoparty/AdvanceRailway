@@ -19,6 +19,7 @@ import dev.nikomaru.advancerailway.domain.rail.BranchDirection
 import dev.nikomaru.advancerailway.domain.rail.BranchEndpoint
 import dev.nikomaru.advancerailway.domain.rail.RailTracer
 import dev.nikomaru.advancerailway.domain.rail.RailWorld
+import dev.nikomaru.advancerailway.domain.rail.RouteCandidate
 import dev.nikomaru.advancerailway.domain.error.DataSearchError
 import dev.nikomaru.advancerailway.domain.error.RailTraceError
 import dev.nikomaru.advancerailway.storage.DataPaths
@@ -75,35 +76,54 @@ object RailwayUtils: KoinComponent {
     }
 
     /**
-     * クリック点から片方向へレール網を全探索し、分岐ごとの終端を列挙する。
-     * 分岐で失敗せず、各終端に分岐点で選んだ方角のフラグ（例: "EE"）が付く。
+     * クリック点からレール網を全方向へ探索し、分岐ごとの終端を列挙する。
+     * 各終端の flags の先頭はクリック点からの出発方角で、以降が分岐点で選んだ方角
+     * （`/ar railway add` の flags 引数と同じ形式）。
      */
     suspend fun railEndpointInspect(
         first: Point3D,
-        directionPoint: Point3D,
         world: World = Bukkit.getWorld("world")!!,
     ): Either<RailTraceError, List<BranchEndpoint>> = withContext(Dispatchers.minecraft) {
-        RailTracer.trace(
-            first, directionPoint, bukkitRailWorld(world), resolveStopBlocks(), config.limit, config.inspectMaxEndpoints
+        RailTracer.traceAll(
+            first, bukkitRailWorld(world), resolveStopBlocks(), config.limit, config.inspectMaxEndpoints
+        )
+    }
+
+    /**
+     * [first] から [end] へ到達できる経路の候補を全方向・全分岐について列挙する。
+     * 各候補の flags は `/ar railway add` の flags 引数にそのまま使える。
+     */
+    suspend fun findRoutes(
+        first: Point3D,
+        end: Point3D,
+        world: World = Bukkit.getWorld("world")!!,
+    ): Either<RailTraceError, List<RouteCandidate>> = withContext(Dispatchers.minecraft) {
+        RailTracer.findRoutes(
+            first, end, bukkitRailWorld(world), resolveStopBlocks(), config.limit, config.inspectMaxEndpoints
         )
     }
 
     /**
      * 始点から終点までの単一経路をトレースする。
-     * 分岐点では [flags] の先頭から順に方角を消費して進路を選ぶ（inspect の分岐フラグと同じ形式）。
+     * [flags] の先頭は始点からの出発方角、以降は分岐点で順に消費して進路を選ぶ方角
+     * （inspect / findRoutes の flags と同じ形式）。
+     * 出発方角に対応する隣接レールがなければ [RailTraceError.DIRECTION_NOT_FOUND]、
      * フラグが足りない・一致する進路がない分岐に当たると [RailTraceError.MULTIPLE_RAIL]。
      */
     suspend fun getLine(
         startPoint: Point3D,
-        directionPoint: Point3D,
         endPoint: Point3D,
-        flags: List<BranchDirection> = emptyList(),
+        flags: List<BranchDirection>,
     ): Either<RailTraceError, Line3D> = withContext(Dispatchers.minecraft) {
         val railWorld = bukkitRailWorld(Bukkit.getWorld("world")!!)
+        val departure = flags.firstOrNull() ?: return@withContext RailTraceError.DIRECTION_NOT_FOUND.left()
+        val directionPoint = RailTracer.adjacentRails(startPoint, railWorld)
+            .firstOrNull { BranchDirection.fromPoints(startPoint, it) == departure }
+            ?: return@withContext RailTraceError.DIRECTION_NOT_FOUND.left()
         var previousPoint = startPoint
         var currentPoint = directionPoint
         var count = 0
-        var flagIndex = 0
+        var flagIndex = 1
         val line = Line3D(startPoint, directionPoint)
         while (count < config.limit) {
             val rails = RailTracer.nextRails(previousPoint, currentPoint, railWorld)

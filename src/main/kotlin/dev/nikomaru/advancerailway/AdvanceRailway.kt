@@ -18,6 +18,7 @@ import dev.nikomaru.advancerailway.commands.group.GroupEditCommand
 import dev.nikomaru.advancerailway.commands.group.GroupInfoCommand
 import dev.nikomaru.advancerailway.commands.group.GroupMainCommand
 import dev.nikomaru.advancerailway.commands.railway.RailwayEditCommand
+import dev.nikomaru.advancerailway.commands.railway.RailwayExploreCommand
 import dev.nikomaru.advancerailway.commands.railway.RailwayInfoCommand
 import dev.nikomaru.advancerailway.commands.railway.RailwayMainCommand
 import dev.nikomaru.advancerailway.commands.railway.RailwayRouteCommand
@@ -136,6 +137,7 @@ open class AdvanceRailway: SuspendingJavaPlugin() {
         annotationParser.parse(
             GeneralCommand(),
             RailwayMainCommand(),
+            RailwayExploreCommand(),
             RailwayInfoCommand(),
             RailwayEditCommand(),
             RailwayRouteCommand(),

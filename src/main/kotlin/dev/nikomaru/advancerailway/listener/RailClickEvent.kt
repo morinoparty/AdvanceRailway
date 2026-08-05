@@ -11,6 +11,7 @@ package dev.nikomaru.advancerailway.listener
 
 import arrow.core.Either
 import dev.nikomaru.advancerailway.domain.geometry.Point3D
+import dev.nikomaru.advancerailway.domain.rail.BranchDirection
 import dev.nikomaru.advancerailway.domain.rail.BranchEndpoint
 import dev.nikomaru.advancerailway.domain.rail.EndpointKind
 import dev.nikomaru.advancerailway.domain.error.toUserMessage
@@ -19,8 +20,6 @@ import dev.nikomaru.advancerailway.domain.service.RailwayUtils.railEndpointInspe
 import dev.nikomaru.advancerailway.domain.service.StationUtils
 import dev.nikomaru.advancerailway.platform.coroutines.minecraft
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.withContext
 import org.bukkit.block.data.Rail
 import org.bukkit.entity.Player
@@ -50,31 +49,23 @@ class RailClickEvent: Listener {
             player.sendRichMessage("<gray>線路を探索しています...")
             val locate = block.location
             val startPoint = locate.let { Point3D(it.x, it.y, it.z) }
-            // クリック地点の隣接検出も探索と同じロジックを使い、ポイントの切替状態に
-            // 依存せず全ての脚から探索を開始する。
+            // 端かどうかの表示のためだけに隣接レールを数える（探索自体は traceAll が全方向へ行う）。
             val adjacentRails = RailwayUtils.detectAdjacentRails(startPoint, player.world)
             if (adjacentRails.count() == 1) {
                 player.sendRichMessage("<gray>このレールは線路の端です。")
             } else {
                 player.sendRichMessage("<gray>このレールは線路の途中です。")
             }
-            val res = adjacentRails.map { detectedPlace ->
-                async {
-                    railEndpointInspect(startPoint, detectedPlace, player.world)
+            when (val result = railEndpointInspect(startPoint, player.world)) {
+                is Either.Right -> {
+                    player.sendRichMessage("<green>${result.value.size} 件の終端を検出しました。")
+                    result.value.forEach { endpoint ->
+                        sendEndpoint(player, endpoint)
+                    }
                 }
-            }.awaitAll()
-            res.forEach { result ->
-                when (result) {
-                    is Either.Right -> {
-                        player.sendRichMessage("<green>${result.value.size} 件の終端を検出しました。")
-                        result.value.forEach { endpoint ->
-                            sendEndpoint(player, endpoint)
-                        }
-                    }
 
-                    is Either.Left -> {
-                        player.sendRichMessage(result.value.toUserMessage())
-                    }
+                is Either.Left -> {
+                    player.sendRichMessage(result.value.toUserMessage())
                 }
             }
         }
@@ -82,30 +73,41 @@ class RailClickEvent: Listener {
 
     /**
      * 終端1件を forward（クリック点→終端）・backward（終端→クリック点）の2行で表示する。
-     * forward の [作成] には分岐フラグ（例: EE）を railway add の flags 引数として付ける。
-     * backward の分岐フラグは逆走時の分岐の現れ方が異なり算出していないため、分岐なしの場合のみ [作成] を出す。
+     * flags の先頭は出発方角で、そのまま railway add の flags 引数に使える。
+     * 始点と終点の最寄り駅が同じ（自駅に戻ってくる）経路は表示しない。
+     * backward の分岐フラグは逆走時の分岐の現れ方が異なり算出していないため、
+     * 途中分岐なし（flags が出発方角のみ）の場合のみ [作成] を出す。
      */
     private suspend fun sendEndpoint(player: Player, endpoint: BranchEndpoint) {
         val label = buildString {
-            if (endpoint.flags.isNotEmpty()) {
-                append("<yellow>[分岐: ${endpoint.flagString()}]</yellow> ")
-            }
+            append("<yellow>[flags: ${endpoint.flagString()}]</yellow> ")
             when (endpoint.kind) {
                 EndpointKind.STOP_BLOCK -> append("<gold>[停止ブロック]</gold> ")
                 EndpointKind.LOOP -> append("<gray>[環状/合流]</gray> ")
                 EndpointKind.RAIL_END -> {}
             }
         }
-        val flagsArg = endpoint.flagString()
+        val backwardFlags = endpoint.backward.let { backward ->
+            val start = backward.start
+            val direction = backward.direction
+            if (endpoint.flags.size == 1 && start != null && direction != null) {
+                BranchDirection.fromPoints(start, direction)?.label
+            } else {
+                null
+            }
+        }
         listOf(
-            endpoint.forward to flagsArg,
-            endpoint.backward to if (endpoint.flags.isEmpty()) "" else null,
+            endpoint.forward to endpoint.flagString(),
+            endpoint.backward to backwardFlags,
         ).forEach { (data, flags) ->
             val start = data.start ?: return@forEach
-            val direction = data.direction ?: return@forEach
             val end = data.end ?: return@forEach
             val startStation = StationUtils.nearStation(start.toLocation(player.world)).getOrNull()
             val endStation = StationUtils.nearStation(end.toLocation(player.world)).getOrNull()
+            if (startStation != null && startStation == endStation) {
+                // 自分の駅に戻ってくる経路は表示しない
+                return@forEach
+            }
             if (startStation == null || endStation == null) {
                 player.sendRichMessage(
                     "$label<white>${start.toPlainString()} -> ${end.toPlainString()}</white> <gray>(付近に駅が登録されていません)"
@@ -114,8 +116,7 @@ class RailClickEvent: Listener {
             }
             val railwayId = startStation.value + "_" + endStation.value
             val suggestMessage = if (flags != null) {
-                val flagsSuffix = if (flags.isEmpty()) "" else " $flags"
-                " <click:suggest_command:'/ar railway add $railwayId ${start.toPlainString()} ${direction.toPlainString()} ${end.toPlainString()}$flagsSuffix'><green>[作成]</green></click>"
+                " <click:suggest_command:'/ar railway add $railwayId ${start.toPlainString()} ${end.toPlainString()} $flags'><green>[作成]</green></click>"
             } else {
                 ""
             }
