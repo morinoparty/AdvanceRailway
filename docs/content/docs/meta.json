@@ -1,7 +1,9 @@
 {
     "pages": [
+        "---はじめに---",
         "index",
         "usage",
+        "migration",
         "---コマンド---",
         "...commands",
         "---MineAuth API---",
