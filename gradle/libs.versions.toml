@@ -49,7 +49,7 @@ shadow = { id = "com.gradleup.shadow", version = "9.6.1" }
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version = "2.4.10" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version = "2.4.10" }
 detekt = { id = "dev.detekt", version = "2.0.0-alpha.6" }
-spotless = { id = "com.diffplug.spotless", version = "8.9.0" }
+spotless = { id = "com.diffplug.spotless", version = "8.10.0" }
 
 [bundles]
 commands-cloud = ["cloud-core", "cloud-paper", "cloud-annotations", "cloud-kotlin-coroutines-annotations"]
