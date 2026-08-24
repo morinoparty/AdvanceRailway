@@ -99,12 +99,12 @@ jobs:
       # GitHub Attestations で署名
       - name: Attest JAR artifacts
         id: attest
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@v4
         with:
           subject-path: './gradle-artifacts/jars/*.jar'
 
       - name: Upload Gradle artifacts
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: gradle-artifacts
           path: ./gradle-artifacts
@@ -156,7 +156,7 @@ jobs:
         run: pnpm run build
 
       - name: Upload docs artifacts
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: docs-artifacts
           path: ./docs/out
