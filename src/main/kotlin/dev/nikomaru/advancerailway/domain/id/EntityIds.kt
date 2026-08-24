@@ -18,9 +18,13 @@ import java.util.UUID
  * 以前は人間可読な文字列（`tokyo` など）がそのまま主キー兼ファイル名だったため、
  * 表示上の都合で ID を変えると全参照が壊れていた。現在その文字列は [Slug] として別に持ち、
  * エンティティ同士の参照はここで定義する UUID だけを使う。
+ *
+ * **value class にはしない。** value class はコンパイル時に [UUID] へインライン展開され、
+ * コマンドハンドラの引数型も JVM 上では [UUID] になってしまう。すると Cloud が
+ * [dev.nikomaru.advancerailway.commands.parser.StationIdParser] ではなく組み込みの UUID パーサーを
+ * 選び、slug や駅名でコマンドを実行できなくなる（回帰は CommandArgumentTypeTest が監視する）。
  */
-@JvmInline
-value class StationId(val value: UUID) {
+data class StationId(val value: UUID) {
     override fun toString(): String = value.toString()
 
     companion object {
@@ -32,8 +36,7 @@ value class StationId(val value: UUID) {
     }
 }
 
-@JvmInline
-value class RailwayId(val value: UUID) {
+data class RailwayId(val value: UUID) {
     override fun toString(): String = value.toString()
 
     companion object {
@@ -43,8 +46,7 @@ value class RailwayId(val value: UUID) {
     }
 }
 
-@JvmInline
-value class GroupId(val value: UUID) {
+data class GroupId(val value: UUID) {
     override fun toString(): String = value.toString()
 
     companion object {
