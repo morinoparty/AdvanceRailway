@@ -79,6 +79,10 @@ object RailTracer {
      * [first] に接続する全方向へ探索し、終端を列挙する（inspect 用）。
      * 各終端の flags の先頭は [first] からの出発方角で、以降が分岐点で選んだ方角。
      * `/ar railway add` の flags 引数にそのまま使える形式。
+     *
+     * [flagPrefix] を渡すと、その並びに沿う経路だけを探索する（例: `E` なら東へ出発する経路のみ、
+     * `EE` ならさらに最初の分岐で東を選んだ経路のみ）。分岐の多い場所で目的の方向だけを見たいときに使う。
+     * 枝を刈ってから探索するので、[limit] や [maxEndpoints] の消費も抑えられる。
      */
     fun traceAll(
         first: Point3D,
@@ -86,13 +90,24 @@ object RailTracer {
         stopBlocks: Set<Material>,
         limit: Long,
         maxEndpoints: Int,
+        flagPrefix: List<BranchDirection> = emptyList(),
     ): Either<RailTraceError, List<BranchEndpoint>> {
         val seeds = adjacentRails(first, world).mapNotNull { leg ->
             val flag = BranchDirection.fromPoints(first, leg) ?: return@mapNotNull null
+            if (!matchesPrefix(flagPrefix, 0, flag)) return@mapNotNull null
             Frame(first, leg, leg, listOf(flag), hashSetOf(first), 0)
         }
-        return explore(first, seeds, world, stopBlocks, limit, maxEndpoints)
+        return explore(first, seeds, world, stopBlocks, limit, maxEndpoints, flagPrefix)
     }
+
+    /**
+     * [index] 番目の分岐で [flag] へ進む選択が [prefix] と矛盾しないか。
+     *
+     * 接頭辞より深い分岐（`index >= prefix.size`）は指定が無いので全て許す。
+     * 逆に接頭辞を使い切る前に経路が終わるのは構わない（そこまでは指定どおり進んでいる）。
+     */
+    private fun matchesPrefix(prefix: List<BranchDirection>, index: Int, flag: BranchDirection): Boolean =
+        index >= prefix.size || prefix[index] == flag
 
     private fun explore(
         first: Point3D,
@@ -101,6 +116,7 @@ object RailTracer {
         stopBlocks: Set<Material>,
         limit: Long,
         maxEndpoints: Int,
+        flagPrefix: List<BranchDirection> = emptyList(),
     ): Either<RailTraceError, List<BranchEndpoint>> {
         val results = mutableListOf<BranchEndpoint>()
         val stack = ArrayDeque(seeds)
@@ -136,11 +152,19 @@ object RailTracer {
                     frame = frame.copy(prev = frame.cur, cur = rails.first())
                     continue
                 }
-                if (results.size + stack.size + rails.size > maxEndpoints) {
+                // 接頭辞で絞ったあとの本数で上限を判定する（絞り込みの意味が無くなるため）。
+                val allowed = rails.mapNotNull { next ->
+                    val flag = BranchDirection.fromPoints(frame.cur, next) ?: return@mapNotNull null
+                    if (matchesPrefix(flagPrefix, frame.flags.size, flag)) next to flag else null
+                }
+                if (allowed.isEmpty()) {
+                    // 指定した経路から外れる分岐しかない。ここは終端として報告しない。
+                    break
+                }
+                if (results.size + stack.size + allowed.size > maxEndpoints) {
                     return RailTraceError.ATTACHED_TO_LIMIT.left()
                 }
-                for (next in rails) {
-                    val flag = BranchDirection.fromPoints(frame.cur, next) ?: continue
+                for ((next, flag) in allowed) {
                     stack.addLast(
                         frame.copy(
                             prev = frame.cur,

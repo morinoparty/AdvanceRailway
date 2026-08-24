@@ -250,6 +250,57 @@ class RailTracerTest {
     }
 
     @Test
+    fun flagPrefixKeepsOnlyTheRequestedDirection() {
+        // 分岐点の上をクリックすると西・南・東の 3 方向へ探索が走る。
+        // 東だけを見たいときに、出発方角を接頭辞で指定して絞り込めること。
+        val world = doubleBranchWorld()
+        val all = (RailTracer.traceAll(p(5, 0, 0), world, emptySet(), 1000, 16) as Either.Right).value
+        val east = (
+            RailTracer.traceAll(p(5, 0, 0), world, emptySet(), 1000, 16, listOf(BranchDirection.EAST))
+                as Either.Right
+            ).value
+
+        assertTrue(all.size > east.size, "絞り込みで件数が減っていません: ${all.map { it.flagString() }}")
+        assertTrue(
+            east.all { it.flagString().startsWith("E") },
+            "東以外へ出発する経路が残っています: ${east.map { it.flagString() }}",
+        )
+    }
+
+    @Test
+    fun flagPrefixNarrowsDownBranchChoices() {
+        val world = doubleBranchWorld()
+
+        // 出発（東）と 1 つ目の分岐（東）を固定する。2 つ目の分岐は指定していないので両方出る。
+        val twoFixed = RailTracer.traceAll(
+            p(0, 0, 0), world, emptySet(), 1000, 16,
+            listOf(BranchDirection.EAST, BranchDirection.EAST),
+        )
+        assertEquals(listOf("EEE", "EES"), (twoFixed as Either.Right).value.map { it.flagString() }.sorted())
+
+        // 2 つ目の分岐まで指定すれば 1 本に絞れる。
+        val allFixed = RailTracer.traceAll(
+            p(0, 0, 0), world, emptySet(), 1000, 16,
+            listOf(BranchDirection.EAST, BranchDirection.EAST, BranchDirection.EAST),
+        )
+        assertEquals(listOf("EEE"), (allFixed as Either.Right).value.map { it.flagString() })
+    }
+
+    @Test
+    fun flagPrefixLongerThanTheTrackStillYieldsThePath() {
+        // 分岐が無い一本道に長い接頭辞を渡しても、指定どおり進めている限り終端は出す。
+        val world = FakeRailWorld(straightEastWest(0, 10))
+        val result = RailTracer.traceAll(
+            p(5, 0, 0), world, emptySet(), 1000, 16,
+            listOf(BranchDirection.EAST, BranchDirection.EAST, BranchDirection.EAST),
+        )
+        val endpoints = (result as Either.Right).value
+
+        assertEquals(listOf("E"), endpoints.map { it.flagString() })
+        assertEquals(p(10, 0, 0), endpoints.single().forward.end)
+    }
+
+    @Test
     fun noEndpointRevisitsTheClickedRail() {
         // 一度通ったレールは 2 度通らない規則により、折り返してクリック地点へ戻る経路は
         // 終端として現れない（戻ってくる手前で LOOP 打ち切りになる）。

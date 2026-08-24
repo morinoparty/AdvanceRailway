@@ -150,6 +150,51 @@ class InspectMessageTest {
     }
 
     @Test
+    @DisplayName("filtering by destination keeps only the paths that end at that station")
+    fun filtersByDestination() {
+        val akmt = station("akmt", "赤松")
+        val other = station("mr01", "もりもと")
+        val toAkmt = endpoint(EndpointKind.RAIL_END)
+        val toOther = endpoint(EndpointKind.RAIL_END)
+        val nowhere = endpoint(EndpointKind.RAIL_END)
+
+        val (shown, filtered) = InspectMessage.filterByDestination(
+            listOf(toAkmt to akmt, toOther to other, nowhere to null),
+            destination = akmt.id,
+        )
+
+        assertEquals(listOf(toAkmt), shown)
+        // 別の駅へ向かう経路と、付近に駅が無い経路の 2 件が外れる。
+        assertEquals(2, filtered)
+    }
+
+    @Test
+    @DisplayName("without a destination every path is kept")
+    fun keepsEverythingWithoutDestination() {
+        val a = endpoint(EndpointKind.RAIL_END)
+        val b = endpoint(EndpointKind.STOP_BLOCK)
+
+        val (shown, filtered) = InspectMessage.filterByDestination(
+            listOf(a to station("akmt", "赤松"), b to null),
+            destination = null,
+        )
+
+        assertEquals(listOf(a, b), shown)
+        assertEquals(0, filtered)
+    }
+
+    @Test
+    @DisplayName("the destination note names the station with both its display name and slug")
+    fun destinationNoteNamesTheStation() {
+        assertNull(InspectMessage.destinationNote(0, "赤松" to Slug("akmt")))
+
+        val note = InspectMessage.destinationNote(2, "赤松" to Slug("akmt"))!!
+        assertTrue(note.contains("赤松"), note)
+        assertTrue(note.contains("(akmt)"), note)
+        assertTrue(note.contains("2 件"), note)
+    }
+
+    @Test
     @DisplayName("the excluded count is reported so an empty result is not left unexplained")
     fun excludedCountIsReported() {
         assertNull(InspectMessage.excludedNote(0))
