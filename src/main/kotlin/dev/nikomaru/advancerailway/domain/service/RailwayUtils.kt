@@ -74,13 +74,16 @@ object RailwayUtils: KoinComponent {
      * クリック点からレール網を全方向へ探索し、分岐ごとの終端を列挙する。
      * 各終端の flags の先頭はクリック点からの出発方角で、以降が分岐点で選んだ方角
      * （`/ar railway add` の flags 引数と同じ形式）。
+     *
+     * [flagPrefix] を指定すると、その並びに沿う経路だけを探索する。
      */
     suspend fun railEndpointInspect(
         first: Point3D,
         world: World = Bukkit.getWorld("world")!!,
+        flagPrefix: List<BranchDirection> = emptyList(),
     ): Either<RailTraceError, List<BranchEndpoint>> = withContext(Dispatchers.minecraft) {
         RailTracer.traceAll(
-            first, bukkitRailWorld(world), resolveStopBlocks(), config.limit, config.inspectMaxEndpoints
+            first, bukkitRailWorld(world), resolveStopBlocks(), config.limit, config.inspectMaxEndpoints, flagPrefix
         )
     }
 

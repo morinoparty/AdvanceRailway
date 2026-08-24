@@ -13,7 +13,11 @@ import com.github.shynixn.mccoroutine.bukkit.minecraftDispatcher
 import dev.nikomaru.advancerailway.AdvanceRailway
 import dev.nikomaru.advancerailway.platform.map.MapRenderer
 import dev.nikomaru.advancerailway.storage.loader.ConfigDataLoader
+import dev.nikomaru.advancerailway.domain.id.StationId
+import dev.nikomaru.advancerailway.domain.rail.BranchDirection
+import dev.nikomaru.advancerailway.listener.InspectRequest
 import dev.nikomaru.advancerailway.listener.RailClickEvent
+import dev.nikomaru.advancerailway.storage.database.repository.StationRepository
 import dev.nikomaru.advancerailway.utils.Utils.toPoint3D
 import kotlinx.coroutines.withContext
 import org.bukkit.command.CommandSender
@@ -23,6 +27,7 @@ import org.incendo.cloud.annotations.Argument
 import org.incendo.cloud.annotations.Command
 import org.incendo.cloud.annotations.CommandDescription
 import org.incendo.cloud.annotations.Default
+import org.incendo.cloud.annotations.Flag
 import org.incendo.cloud.annotations.Permission
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
@@ -41,6 +46,7 @@ import org.koin.core.component.inject
 @Command("ar|advancerailway")
 class GeneralCommand : KoinComponent {
     val plugin: AdvanceRailway by inject()
+    private val stationRepository: StationRepository by inject()
 
     @Command("info")
     @CommandDescription("プラグインの情報（バージョン・作者・サイト）を表示します")
@@ -61,6 +67,7 @@ class GeneralCommand : KoinComponent {
         sender.sendRichMessage("<yellow>■ 一般")
         sender.sendRichMessage("<white>/ar info <gray>- プラグイン情報")
         sender.sendRichMessage("<white>/ar help <gray>- このヘルプ")
+        sender.sendRichMessage("<white>/ar inspect [flags] [--to <駅>] <gray>- 線路の解析 (運営)")
         sender.sendRichMessage("<yellow>■ 駅 <gray>(閲覧は全員 / 編集は運営)")
         sender.sendRichMessage("<white>/ar station list [page] <gray>- 駅一覧")
         sender.sendRichMessage("<white>/ar station info <駅> <gray>- 駅の詳細")
@@ -89,20 +96,57 @@ class GeneralCommand : KoinComponent {
         sender.sendRichMessage("<green>設定を再読み込みし、マップを描き直しました。")
     }
 
-    @Command("inspect")
-    @CommandDescription("クリックしたレールを解析します（プレイヤー専用）")
+    /**
+     * クリックしたレールから線路網を探索する。分岐の多い場所では終端が一気に増えるため、
+     * 見たい経路をあらかじめ絞れるようにしている。
+     *
+     * - `flags` — たどる方角の並び（例 `E` / `EE`）。先頭が出発方角で、指定した並びから
+     *   外れる分岐は探索しない。省略すると全方向を探索する。
+     * - `--to` — その駅を終点とする経路だけを表示する。
+     */
+    @Command("inspect [flags]")
+    @CommandDescription("クリックしたレールを解析します（flags で方向を絞り、--to で終点駅を指定）")
     @Permission("advancerailway.inspect")
-    suspend fun inspect(sender: CommandSender) {
+    suspend fun inspect(
+        sender: CommandSender,
+        @Argument("flags") flags: String?,
+        @Flag(
+            value = "to",
+            aliases = ["t"],
+            description = "指定した駅を終点とする経路だけを表示します",
+        ) to: StationId?,
+    ) {
         if (sender !is Player) {
             sender.sendRichMessage("<red>このコマンドはプレイヤー専用です。")
             return
         }
-        // detect は非スレッドセーフな ArrayList で、イベントハンドラ（メインスレッド）と共有される。
-        // 追加はメインスレッドで行う。
-        withContext(plugin.minecraftDispatcher) {
-            RailClickEvent.detect.add(sender)
+        // 空文字は「指定なし」として扱う（Cloud の省略可能引数は空文字で渡ってくることがある）。
+        val prefix = if (flags.isNullOrBlank()) {
+            emptyList()
+        } else {
+            BranchDirection.parse(flags) ?: run {
+                sender.sendRichMessage(
+                    "<red>flags が不正です（N/S/E/W の並びで指定してください）: <white>$flags</white>"
+                )
+                return
+            }
         }
-        sender.sendRichMessage("<yellow>解析したいレールをクリックしてください。")
+        // detect は非スレッドセーフな HashMap で、イベントハンドラ（メインスレッド）と共有される。
+        // 出し入れはメインスレッドで行う。
+        withContext(plugin.minecraftDispatcher) {
+            RailClickEvent.detect[sender.uniqueId] = InspectRequest(prefix, to)
+        }
+        val conditions = buildList {
+            if (prefix.isNotEmpty()) add("方角 <white>${prefix.joinToString("") { it.label }}</white>")
+            if (to != null) add("終点 <white>${stationRepository.findById(to)?.name ?: to}</white>")
+        }
+        if (conditions.isEmpty()) {
+            sender.sendRichMessage("<yellow>解析したいレールをクリックしてください。")
+        } else {
+            sender.sendRichMessage(
+                "<yellow>解析したいレールをクリックしてください。<gray>（${conditions.joinToString(" / ")} で絞り込み）"
+            )
+        }
     }
 
     // Cloud はメソッド引数を @Command の syntax 文字列に宣言する必要がある（[..] は任意引数）。

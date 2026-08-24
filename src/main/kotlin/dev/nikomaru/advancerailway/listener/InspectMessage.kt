@@ -12,6 +12,8 @@ package dev.nikomaru.advancerailway.listener
 import dev.nikomaru.advancerailway.commands.nameWithSlug
 import dev.nikomaru.advancerailway.domain.geometry.Point3D
 import dev.nikomaru.advancerailway.domain.rail.BranchEndpoint
+import dev.nikomaru.advancerailway.domain.id.Slug
+import dev.nikomaru.advancerailway.domain.id.StationId
 import dev.nikomaru.advancerailway.domain.rail.EndpointKind
 import dev.nikomaru.advancerailway.storage.model.StationData
 
@@ -34,6 +36,32 @@ internal object InspectMessage {
     fun partitionForDisplay(endpoints: List<BranchEndpoint>): Pair<List<BranchEndpoint>, Int> {
         val (loops, shown) = endpoints.partition { it.kind == EndpointKind.LOOP }
         return shown to loops.size
+    }
+
+    /**
+     * 終点駅で絞り込む。[destination] が null なら何もしない。
+     *
+     * @param endpoints 終端と、その終点の最寄り駅の組。
+     * @return 残った終端と、絞り込みで外した件数。
+     */
+    fun filterByDestination(
+        endpoints: List<Pair<BranchEndpoint, StationData?>>,
+        destination: StationId?,
+    ): Pair<List<BranchEndpoint>, Int> {
+        if (destination == null) return endpoints.map { it.first } to 0
+        val matched = endpoints.filter { (_, station) -> station?.id == destination }
+        return matched.map { it.first } to (endpoints.size - matched.size)
+    }
+
+    /**
+     * 終点駅で絞り込んだときの注記。絞り込んでいない・外した件数が 0 なら null。
+     *
+     * @param station 絞り込みに使った駅の表示名と slug。解決できなければ null。
+     */
+    fun destinationNote(filtered: Int, station: Pair<String, Slug>?): String? {
+        if (filtered <= 0) return null
+        val label = station?.let { (name, slug) -> nameWithSlug(name, slug) } ?: "<gray>指定した駅</gray>"
+        return "<gray>（$label <gray>以外へ向かう経路 $filtered 件は除外しました）"
     }
 
     /** 除外した件数の注記。除外が無ければ null。 */

@@ -18,6 +18,7 @@ import dev.nikomaru.advancerailway.domain.error.toUserMessage
 import dev.nikomaru.advancerailway.domain.service.RailwayUtils
 import dev.nikomaru.advancerailway.domain.service.RailwayUtils.railEndpointInspect
 import dev.nikomaru.advancerailway.domain.service.StationUtils
+import dev.nikomaru.advancerailway.storage.database.repository.StationRepository
 import dev.nikomaru.advancerailway.platform.coroutines.minecraft
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -26,23 +27,26 @@ import org.bukkit.entity.Player
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
 import org.bukkit.event.player.PlayerInteractEvent
+import java.util.UUID
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 
 class RailClickEvent: Listener, KoinComponent {
     private val plugin: AdvanceRailway by inject()
+    private val stationRepository: StationRepository by inject()
 
     companion object {
-        val detect = arrayListOf<Player>()
+        /**
+         * `/ar inspect` を実行して次のクリックを待っているプレイヤーと、その要求。
+         * 非スレッドセーフな [HashMap] なので、出し入れはメインスレッドでのみ行う。
+         */
+        val detect = HashMap<UUID, InspectRequest>()
     }
 
     @EventHandler
     suspend fun onRailClick(event: PlayerInteractEvent) {
         val player = event.player
-        if (player !in detect) {
-            return
-        }
-        detect.remove(player)
+        val request = detect.remove(player.uniqueId) ?: return
         withContext(Dispatchers.minecraft) {
             val block = event.clickedBlock ?: return@withContext
             val blockState = block.blockData
@@ -63,11 +67,21 @@ class RailClickEvent: Listener, KoinComponent {
             // 例外をそのまま伝播させると、プレイヤーには「探索しています…」だけが残って
             // 何が起きたのか分からない（原因はコンソールのログにしか出ない）。ここで拾って伝える。
             try {
-                when (val result = railEndpointInspect(startPoint, player.world)) {
+                when (val result = railEndpointInspect(startPoint, player.world, request.flagPrefix)) {
                     is Either.Right -> {
-                        val (endpoints, excluded) = InspectMessage.partitionForDisplay(result.value)
+                        val (loopFree, excluded) = InspectMessage.partitionForDisplay(result.value)
+                        // 終点駅で絞る場合は、各終端の最寄り駅を 1 度だけ引いて突き合わせる。
+                        // forward.end は終端そのものなので通常は非 null だが、念のため落とさず素通しする。
+                        val withStations = loopFree.map { endpoint ->
+                            val end = endpoint.forward.end
+                            endpoint to end?.let { StationUtils.nearStation(it.toLocation(player.world)) }
+                        }
+                        val (endpoints, filtered) = InspectMessage.filterByDestination(withStations, request.destination)
                         player.sendRichMessage("<green>${endpoints.size} 件の終端を検出しました。")
                         InspectMessage.excludedNote(excluded)?.let { player.sendRichMessage(it) }
+                        InspectMessage.destinationNote(filtered, request.destination?.let { id ->
+                            stationRepository.findById(id)?.let { s -> s.name to s.slug }
+                        })?.let { player.sendRichMessage(it) }
                         endpoints.forEach { endpoint ->
                             sendEndpoint(player, endpoint)
                         }
