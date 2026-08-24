@@ -1,5 +1,5 @@
 [versions]
-paperVersion = "26.1.2.build.72-stable"
+paperVersion = "26.2.build.116-stable"
 squaremapVersion = "1.3.15"
 mccoroutineVersion = "2.22.0"
 # Incendo Cloud コマンドフレームワーク（MoripaFishing 等 morinoparty 系プラグインと揃える）。
@@ -20,7 +20,9 @@ uuidCreatorVersion = "6.1.1"
 mineauthVersion = "0.3.6"
 mockbukkitVersion = "4.116.3"
 mockkVersion = "1.14.11"
-# MockBukkit 4.110.0 がターゲットとする paper-api（テスト実行時のみ使用）。
+# MockBukkit がターゲットとする paper-api（テスト実行時のみ使用）。
+# main の paperVersion（26.x）とは意図的に別管理にしている。MockBukkit を 26.x の paper-api で
+# 動かすと ServerMock の初期化に失敗するため、MockBukkit 側が対応するまでここは上げられない。
 paperTestVersion = "1.21.11-R0.1-SNAPSHOT"
 
 [libraries]
@@ -52,7 +54,7 @@ mockk = { group = "io.mockk", name = "mockk", version.ref = "mockkVersion" }
 paper-api-test = { group = "io.papermc.paper", name = "paper-api", version.ref = "paperTestVersion" }
 
 [plugins]
-run-paper = { id = "xyz.jpenilla.run-paper", version = "3.0.2" }
+run-paper = { id = "xyz.jpenilla.run-paper", version = "3.1.0" }
 resource-factory = { id = "xyz.jpenilla.resource-factory", version = "1.3.1" }
 shadow = { id = "com.gradleup.shadow", version = "9.6.1" }
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version = "2.4.10" }
