@@ -1,28 +1,60 @@
 ---
 title: グループコマンド
-description: グループ（路線名・色）の管理
+description: グループ（路線名・色・駅ナンバリング）の管理
 ---
 
 # グループコマンド
 
 閲覧: `advancerailway.group.view`（全員） / 編集: `advancerailway.group.manage`（OP）
 
-グループは「路線名」を表し、squaremap 上の色を持ちます。路線（railway）をグループにまとめることで、
-マップ上で同じ色のひとつながりの路線として表示されます。
+グループは「路線名」を表し、squaremap 上の色と**駅ナンバリング**を持ちます。路線（railway）をグループに
+まとめることで、マップ上で同じ色のひとつながりの路線として表示されます。
 
 ## 閲覧
 
 - `ar group list [page]` — グループの一覧をページ表示します。
 - `ar group info <groupId>` — グループの情報を表示します。
+- `ar group station list <groupId>` — グループ内の駅の並びと、算出された駅番号を表示します。
 
 ## 編集
 
-- `ar group add <id> <name>` — グループ（路線）を作成します。
-- `ar group remove <id>` — グループを削除します（路線から参照されている場合は不可）。
+- `ar group add <slug> <name>` — グループ（路線）を作成します。
+- `ar group remove <groupId>` — グループを削除します（路線から参照されている場合は不可）。
 - `ar group set name <groupId> <name>` — グループ名を変更します。
+- `ar group set slug <groupId> <newSlug>` — グループの slug を変更します。
 - `ar group set color <groupId> <r> <g> <b>` — グループ（路線）の色を変更します（各 0〜255）。
+
+## 駅ナンバリング
+
+駅番号（`JY01` など）は駅ではなくグループが決めます。グループが**接頭辞**と**開始番号**を持ち、
+グループ内の**駅の並び順**と組み合わせて番号を組み立てます。
+
+- `ar group set numbering-prefix <groupId> <prefix>` — 接頭辞を設定します（`none` で無効化）。
+- `ar group set numbering-start <groupId> <number>` — 開始番号を設定します（既定 `1`）。
+- `ar group station set <groupId> <駅...>` — 駅の並びをまとめて設定します（スペース区切り）。
+
+並びは**一括で置き換え**ます。1 駅ずつ挿入・移動するコマンドはありません（並び順が常に連番で
+矛盾しないようにするためです）。一覧に含めなかった駅はそのグループから外れます（駅自体は消えません）。
 
 ### 例
 
+```
+ar group add ym 山手線
+ar group set numbering-prefix ym JY
+ar group station set ym tokyo kanda akihabara
+ar group station list ym
+```
+
+上の例では、東京 = `JY01`、神田 = `JY02`、秋葉原 = `JY03` になります。
+開始番号を `ar group set numbering-start ym 10` に変えると `JY10` から始まります。
+
+:::note
+乗換駅のように複数のグループに属する駅は、**グループごとに別の番号**を持ちます。
+`ar station info` を実行すると所属グループごとの番号が並びます。
+:::
+
+### 例（グループの基本）
+
 - `ar group add mr もりもと線` — 「もりもと線」というグループを作成します。
 - `ar railway set group mr01_mr02 mr` — 路線をグループに追加します（[路線コマンド](/docs/commands/railway)）。
+- `ar group set color mr 46 139 87` — もりもと線の色を変更します。

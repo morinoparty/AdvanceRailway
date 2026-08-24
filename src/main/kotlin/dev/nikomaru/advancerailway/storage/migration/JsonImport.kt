@@ -67,7 +67,9 @@ class JsonImport(
      * @return 取り込みを行った場合はその結果、行わなかった場合は null。
      */
     suspend fun runIfNeeded(): Result? {
-        if (!dataFolder.exists()) return null
+        // フォルダが空のまま残っているだけなら「旧データあり」とは扱わない
+        // （新規インストールで data/ を作ってしまった場合に、退避ログを出さないため）。
+        if (!hasLegacyJson()) return null
         if (stationRepository.count() > 0 || railwayRepository.count() > 0 || groupRepository.count() > 0) return null
 
         logger.info("Found legacy JSON data; importing into the database.")
@@ -84,6 +86,14 @@ class JsonImport(
             )
         }
         return result
+    }
+
+    /** `data/{stations,railways,groups}/` のいずれかに JSON ファイルが 1 件でもあるか。 */
+    private suspend fun hasLegacyJson(): Boolean = withContext(Dispatchers.IO) {
+        if (!dataFolder.exists()) return@withContext false
+        listOf("stations", "railways", "groups").any { type ->
+            dataFolder.resolve(type).listFiles { f: File -> f.isFile && f.extension == "json" }?.isNotEmpty() == true
+        }
     }
 
     private suspend fun import(): Result {

@@ -17,10 +17,10 @@ AdvanceRailway では、次の 4 ステップで鉄道ネットワークを登�
 駅にしたい場所に立って、次のコマンドを実行します。
 
 ```
-ar station add <stationId> <name>
+ar station add <slug> <name>
 ```
 
-- `stationId` : 駅の ID（英数字・`_`・`-`）
+- `slug` : 駅の短い識別子（英数字・`_`・`-`）
 - `name` : 駅の表示名
 
 例えば `ar station add mr01 もりもと` とすると、現在地に「もりもと」駅が作られます。
@@ -73,8 +73,8 @@ graph LR
 複数の路線（railway）を 1 つのグループに入れると、マップ上で同じ色のひとつながりの路線として表示されます。
 
 ```
-ar group add <groupId> <name>
-ar railway set group <railwayId> <groupId>
+ar group add <slug> <name>
+ar railway set group <railwayId> <group>
 ar group set color <groupId> <r> <g> <b>
 ```
 
@@ -83,6 +83,14 @@ ar group set color <groupId> <r> <g> <b>
 - `ar group add mr もりもと線` — 「もりもと線」グループを作成します。
 - `ar railway set group mr01_mr02 mr` — 路線をもりもと線に追加します。
 - `ar group set color mr 46 139 87` — もりもと線の色を変更します（RGB 各 0〜255）。
+
+グループは駅ナンバリング（`JY01` など）も持ちます。接頭辞と駅の並びを設定すると、
+各駅の番号が自動で決まります。
+
+```
+ar group set numbering-prefix mr MR
+ar group station set mr mr01 mr02
+```
 
 詳しくは [グループコマンド](/docs/commands/group) を参照してください。
 
@@ -102,3 +110,9 @@ ar railway route <from> <to>
 :::
 
 レールでつながっていない駅どうしでも、同一ワールド内なら徒歩区間で補完して経路を表示します。
+
+## データはどこに保存されるか
+
+駅・路線・グループはプラグインのデータフォルダ内の SQLite データベース（`advancerailway.db`）に保存されます。
+外部ツールから取得・編集したい場合は [MineAuth HTTP API](/docs/mineauth-api) を使ってください。
+旧バージョンの JSON データからの移行については [データの保存先と経路検証](/docs/migration) を参照してください。

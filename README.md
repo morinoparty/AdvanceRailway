@@ -3,15 +3,16 @@
 AdvanceRailway is a [Paper](https://papermc.io/)/Bukkit plugin that lets you build and manage in-game railway
 networks: stations, railway lines, and groups of lines. It renders the network on the
 [squaremap](https://github.com/jpenilla/squaremap) web map and, when the MineAuth plugin is present,
-exposes a read-only HTTP API for querying stations, railways, and groups as JSON.
+exposes an HTTP API for reading and editing stations, railways, and groups as JSON.
 
 ## Features
 
-- Define stations and railways with commands, stored as JSON under the plugin's data folder.
-- Group railway lines together (e.g. by line color/name) via `GroupData`.
+- Define stations and railways with commands, stored in a SQLite database under the plugin's data folder.
+- Group railway lines together (line name, colour, and station numbering) via `GroupData`.
 - Draw stations and railway lines as markers on the squaremap live map (optional soft dependency).
 - Optional MineAuth integration that publishes `/api/v1/plugins/advancerailway/` HTTP endpoints for
-  stations, railways, and groups (list + get-by-id). See the docs site for the full API reference.
+  stations, railways, and groups (list, get, create, update, delete). See the docs site for the full
+  API reference.
 
 ## Building
 
