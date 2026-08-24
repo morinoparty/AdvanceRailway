@@ -10,6 +10,7 @@
 package dev.nikomaru.advancerailway.commands.station
 
 import dev.nikomaru.advancerailway.commands.esc
+import dev.nikomaru.advancerailway.commands.nameWithSlug
 import dev.nikomaru.advancerailway.commands.sendPaginated
 import dev.nikomaru.advancerailway.commands.toHex
 import dev.nikomaru.advancerailway.domain.id.StationId
@@ -56,7 +57,7 @@ class StationInfoCommand : KoinComponent {
                 val groupHex = entry.group.railwayColor.toHex()
                 val numbering = entry.numbering ?: "—"
                 sender.sendRichMessage(
-                    "  <color:$groupHex>■</color> <white>${esc(entry.group.name)}</white> " +
+                    "  <color:$groupHex>■</color> ${nameWithSlug(entry.group.name, entry.group.slug)} " +
                         "<gray>· ${entry.position + 1} 番目 · </gray><white>$numbering</white>"
                 )
             }

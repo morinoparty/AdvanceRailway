@@ -10,6 +10,7 @@
 package dev.nikomaru.advancerailway.commands.railway
 
 import arrow.core.Either
+import dev.nikomaru.advancerailway.commands.nameWithSlugPlain
 import dev.nikomaru.advancerailway.domain.id.GroupId
 import dev.nikomaru.advancerailway.domain.id.StationId
 import dev.nikomaru.advancerailway.domain.route.RailEdge
@@ -82,8 +83,9 @@ class RailwayRouteCommand : KoinComponent {
     ) {
         val stationData = stationRepository.findAll()
         val stations = stationData.map { it.toNode() }
-        val stationNames = stationData.associate { it.id to it.name }
-        val labels = stationData.associate { it.id to (it.name.takeIf { n -> n.isNotBlank() } ?: it.slug.value) }
+        // 表示名だけだと同名駅を見分けられず、そのままコマンドに打てるとも限らないので slug も添える。
+        val stationNames = stationData.associate { it.id to nameWithSlugPlain(it.name, it.slug) }
+        val labels = stationNames
         if (second == null) {
             // route <to>: 現在地から first へ。
             val player = sender as? Player ?: run {

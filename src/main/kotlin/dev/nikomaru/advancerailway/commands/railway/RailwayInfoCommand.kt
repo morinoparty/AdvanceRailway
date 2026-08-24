@@ -10,6 +10,7 @@
 package dev.nikomaru.advancerailway.commands.railway
 
 import dev.nikomaru.advancerailway.commands.esc
+import dev.nikomaru.advancerailway.commands.nameWithSlug
 import dev.nikomaru.advancerailway.commands.formatCheckedAt
 import dev.nikomaru.advancerailway.commands.formatMinutes
 import dev.nikomaru.advancerailway.commands.sendPaginated
@@ -47,8 +48,8 @@ class RailwayInfoCommand : KoinComponent {
         val slug = data.slug.value
         val fromStation = stationRepository.findById(data.fromStation)
         val toStation = stationRepository.findById(data.toStation)
-        val fromName = fromStation?.name ?: data.fromStation.toString()
-        val toName = toStation?.name ?: data.toStation.toString()
+        val fromLabel = fromStation?.let { nameWithSlug(it.name, it.slug) } ?: "<gray>${data.fromStation}</gray>"
+        val toLabel = toStation?.let { nameWithSlug(it.name, it.slug) } ?: "<gray>${data.toStation}</gray>"
         val groupData = data.group?.let { groupRepository.findById(it) }
 
         sender.sendRichMessage(
@@ -68,9 +69,7 @@ class RailwayInfoCommand : KoinComponent {
                     "<click:suggest_command:'/ar railway set group $slug <group>'><dark_gray>[編集]</dark_gray></click>"
             )
         }
-        sender.sendRichMessage(
-            "<gray>区間: <white>${esc(fromName)}</white> <yellow>→</yellow> <white>${esc(toName)}</white>"
-        )
+        sender.sendRichMessage("<gray>区間: $fromLabel <yellow>→</yellow> $toLabel")
         sender.sendRichMessage("<gray>所要時間: <white>${formatMinutes(data.timeRequired)}</white>")
         sender.sendRichMessage(
             "<gray>種別: <white>${data.lineType}</white> " +
@@ -92,7 +91,7 @@ class RailwayInfoCommand : KoinComponent {
     @Permission("advancerailway.railway.view")
     suspend fun list(sender: CommandSender, @Argument("page") @Default("1") page: Int) {
         val railways = railwayRepository.findAll()
-        val stationNames = stationRepository.findAll().associate { it.id to it.name }
+        val stationLabels = stationRepository.findAll().associate { it.id to nameWithSlug(it.name, it.slug) }
         val groups = groupRepository.findAll().associateBy { it.id }
         sender.sendPaginated(
             items = railways,
@@ -102,13 +101,13 @@ class RailwayInfoCommand : KoinComponent {
             pageCommand = "/ar railway list",
         ) {
             val slug = it.slug.value
-            val fromName = stationNames[it.fromStation] ?: it.fromStation.toString()
-            val toName = stationNames[it.toStation] ?: it.toStation.toString()
+            val fromLabel = stationLabels[it.fromStation] ?: "<gray>${it.fromStation}</gray>"
+            val toLabel = stationLabels[it.toStation] ?: "<gray>${it.toStation}</gray>"
             val marker = it.group?.let { g -> groups[g] }
                 ?.let { gd -> "<color:${gd.railwayColor.toHex()}>■</color>" }
                 ?: "<gray>■</gray>"
             "$marker <white>$slug</white> " +
-                "<gray>${esc(fromName)} <yellow>→</yellow> ${esc(toName)}</gray> " +
+                "$fromLabel <yellow>→</yellow> $toLabel " +
                 "<dark_gray>(${formatMinutes(it.timeRequired)})</dark_gray> " +
                 "<click:run_command:/ar railway info $slug><dark_gray>[詳細]</dark_gray></click>"
         }
