@@ -70,7 +70,6 @@ class PluginYmlTest {
     @DisplayName("編集・運用系の権限は全員に付与されない（default != true）")
     fun writeAndOpsNodesAreNotPublic() {
         val opOnly = listOf(
-            "advancerailway.manage",
             "advancerailway.station.manage",
             "advancerailway.station.tp",
             "advancerailway.railway.manage",

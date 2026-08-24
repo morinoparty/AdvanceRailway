@@ -53,10 +53,11 @@ import java.io.File
  * MineAuth の HTTP API へ AdvanceRailway の駅・路線・グループデータを公開するハンドラー。
  * `/api/v1/plugins/advancerailway/` 配下に読み取り専用エンドポイントを提供する。
  *
- * 各エンドポイントは [Authenticated] で保護し、`callers = [CallerType.SERVICE]` を指定して
- * 管理者が発行したサービストークンからのみ呼び出せるようにする（プレイヤーのユーザートークンは拒否）。
- * サービストークンは信頼された資格情報として扱われ、パーミッションノードの評価対象外となるため、
- * ここでは permission を指定しない。
+ * 各エンドポイントは [Authenticated] で保護し、サービストークンと `advancerailway.admin` を持つ
+ * プレイヤーのユーザートークンの双方から呼び出せるようにする。
+ * サービストークンは管理者が発行する信頼された資格情報として扱われ、パーミッションノードの
+ * 評価対象外となる。ユーザートークンは [ADMIN_PERMISSION] を持つ場合のみ通過する
+ * （権限判定はオンラインのプレイヤーに対して行われ、オフラインなら 403 `player_offline`）。
  *
  * ハンドラーは [kotlinx.serialization.Serializable] な DTO をそのまま返し、
  * JSON へのシリアライズは MineAuth 側が担う。
@@ -64,6 +65,12 @@ import java.io.File
 class RailwayApiHandler {
 
     companion object {
+        /**
+         * ユーザートークンでの呼び出しに要求するパーミッションノード。
+         * サービストークンは信頼された資格情報のため、この評価対象外となる。
+         */
+        const val ADMIN_PERMISSION = "advancerailway.admin"
+
         /** limit 未指定時に返す件数の既定値。 */
         const val DEFAULT_LIMIT = 100
 
@@ -90,7 +97,7 @@ class RailwayApiHandler {
      * GET /stations?limit={n}&offset={n}
      */
     @Get("/stations")
-    @Authenticated(callers = [CallerType.SERVICE])
+    @Authenticated(permission = ADMIN_PERMISSION, callers = [CallerType.USER, CallerType.SERVICE])
     suspend fun listStations(
         @Query("limit") limit: Int? = null,
         @Query("offset") offset: Int? = null,
@@ -105,7 +112,7 @@ class RailwayApiHandler {
      * GET /stations/{id}
      */
     @Get("/stations/{id}")
-    @Authenticated(callers = [CallerType.SERVICE])
+    @Authenticated(permission = ADMIN_PERMISSION, callers = [CallerType.USER, CallerType.SERVICE])
     suspend fun getStation(@Path("id") id: String): StationDto {
         if (!IdValidation.isValid(id)) throw HttpError(HttpStatus.NOT_FOUND, "Station not found: $id")
         val station = StationUtils.getStationData(StationId(id)).getOrNull()
@@ -118,7 +125,7 @@ class RailwayApiHandler {
      * GET /railways?limit={n}&offset={n}
      */
     @Get("/railways")
-    @Authenticated(callers = [CallerType.SERVICE])
+    @Authenticated(permission = ADMIN_PERMISSION, callers = [CallerType.USER, CallerType.SERVICE])
     suspend fun listRailways(
         @Query("limit") limit: Int? = null,
         @Query("offset") offset: Int? = null,
@@ -133,7 +140,7 @@ class RailwayApiHandler {
      * GET /railways/{id}
      */
     @Get("/railways/{id}")
-    @Authenticated(callers = [CallerType.SERVICE])
+    @Authenticated(permission = ADMIN_PERMISSION, callers = [CallerType.USER, CallerType.SERVICE])
     suspend fun getRailway(@Path("id") id: String): RailwayDto {
         if (!IdValidation.isValid(id)) throw HttpError(HttpStatus.NOT_FOUND, "Railway not found: $id")
         val railway = RailwayUtils.getRailwayData(RailwayId(id)).getOrNull()
@@ -146,7 +153,7 @@ class RailwayApiHandler {
      * GET /groups?limit={n}&offset={n}
      */
     @Get("/groups")
-    @Authenticated(callers = [CallerType.SERVICE])
+    @Authenticated(permission = ADMIN_PERMISSION, callers = [CallerType.USER, CallerType.SERVICE])
     suspend fun listGroups(
         @Query("limit") limit: Int? = null,
         @Query("offset") offset: Int? = null,
@@ -161,7 +168,7 @@ class RailwayApiHandler {
      * GET /groups/{id}
      */
     @Get("/groups/{id}")
-    @Authenticated(callers = [CallerType.SERVICE])
+    @Authenticated(permission = ADMIN_PERMISSION, callers = [CallerType.USER, CallerType.SERVICE])
     suspend fun getGroup(@Path("id") id: String): GroupDto {
         if (!IdValidation.isValid(id)) throw HttpError(HttpStatus.NOT_FOUND, "Group not found: $id")
         val group = GroupUtils.getGroupData(GroupId(id)).getOrNull()
@@ -179,7 +186,7 @@ class RailwayApiHandler {
      * - 経路が存在しない: 404 `no_route`
      */
     @Get("/route")
-    @Authenticated(callers = [CallerType.SERVICE])
+    @Authenticated(permission = ADMIN_PERMISSION, callers = [CallerType.USER, CallerType.SERVICE])
     suspend fun getRoute(
         @Query("from") from: String,
         @Query("to") to: String,
@@ -212,7 +219,7 @@ class RailwayApiHandler {
      * GET /stations/{id}/railways
      */
     @Get("/stations/{id}/railways")
-    @Authenticated(callers = [CallerType.SERVICE])
+    @Authenticated(permission = ADMIN_PERMISSION, callers = [CallerType.USER, CallerType.SERVICE])
     suspend fun stationRailways(@Path("id") id: String): RailwaysResponse {
         if (!IdValidation.isValid(id)) throw HttpError(HttpStatus.NOT_FOUND, "Station not found: $id")
         StationUtils.getStationData(StationId(id)).getOrNull()
@@ -228,7 +235,7 @@ class RailwayApiHandler {
      * GET /groups/{id}/railways
      */
     @Get("/groups/{id}/railways")
-    @Authenticated(callers = [CallerType.SERVICE])
+    @Authenticated(permission = ADMIN_PERMISSION, callers = [CallerType.USER, CallerType.SERVICE])
     suspend fun groupRailways(@Path("id") id: String): RailwaysResponse {
         if (!IdValidation.isValid(id)) throw HttpError(HttpStatus.NOT_FOUND, "Group not found: $id")
         GroupUtils.getGroupData(GroupId(id)).getOrNull()
@@ -243,7 +250,7 @@ class RailwayApiHandler {
      * - 同一ワールドに駅が 1 つも無い場合は 404 `no_station`。
      */
     @Get("/nearest-station")
-    @Authenticated(callers = [CallerType.SERVICE])
+    @Authenticated(permission = ADMIN_PERMISSION, callers = [CallerType.USER, CallerType.SERVICE])
     suspend fun nearestStation(
         @Query("world") world: String,
         @Query("x") x: Double,
@@ -262,7 +269,7 @@ class RailwayApiHandler {
      * GET /stats
      */
     @Get("/stats")
-    @Authenticated(callers = [CallerType.SERVICE])
+    @Authenticated(permission = ADMIN_PERMISSION, callers = [CallerType.USER, CallerType.SERVICE])
     suspend fun stats(): StatsResponse =
         StatsResponse(
             stations = listIds("stations").size,
