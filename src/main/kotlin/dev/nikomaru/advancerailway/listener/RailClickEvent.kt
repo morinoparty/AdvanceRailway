@@ -13,7 +13,7 @@ import arrow.core.Either
 import dev.nikomaru.advancerailway.domain.geometry.Point3D
 import dev.nikomaru.advancerailway.domain.rail.BranchDirection
 import dev.nikomaru.advancerailway.domain.rail.BranchEndpoint
-import dev.nikomaru.advancerailway.domain.rail.EndpointKind
+import dev.nikomaru.advancerailway.AdvanceRailway
 import dev.nikomaru.advancerailway.domain.error.toUserMessage
 import dev.nikomaru.advancerailway.domain.service.RailwayUtils
 import dev.nikomaru.advancerailway.domain.service.RailwayUtils.railEndpointInspect
@@ -26,8 +26,12 @@ import org.bukkit.entity.Player
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
 import org.bukkit.event.player.PlayerInteractEvent
+import org.koin.core.component.KoinComponent
+import org.koin.core.component.inject
 
-class RailClickEvent: Listener {
+class RailClickEvent: Listener, KoinComponent {
+    private val plugin: AdvanceRailway by inject()
+
     companion object {
         val detect = arrayListOf<Player>()
     }
@@ -56,37 +60,38 @@ class RailClickEvent: Listener {
             } else {
                 player.sendRichMessage("<gray>このレールは線路の途中です。")
             }
-            when (val result = railEndpointInspect(startPoint, player.world)) {
-                is Either.Right -> {
-                    player.sendRichMessage("<green>${result.value.size} 件の終端を検出しました。")
-                    result.value.forEach { endpoint ->
-                        sendEndpoint(player, endpoint)
+            // 例外をそのまま伝播させると、プレイヤーには「探索しています…」だけが残って
+            // 何が起きたのか分からない（原因はコンソールのログにしか出ない）。ここで拾って伝える。
+            try {
+                when (val result = railEndpointInspect(startPoint, player.world)) {
+                    is Either.Right -> {
+                        player.sendRichMessage("<green>${result.value.size} 件の終端を検出しました。")
+                        result.value.forEach { endpoint ->
+                            sendEndpoint(player, endpoint)
+                        }
+                    }
+
+                    is Either.Left -> {
+                        player.sendRichMessage(result.value.toUserMessage())
                     }
                 }
-
-                is Either.Left -> {
-                    player.sendRichMessage(result.value.toUserMessage())
-                }
+            } catch (e: Exception) {
+                plugin.logger.warning("inspect failed for ${player.name}: ${e.message}")
+                player.sendRichMessage("<red>解析に失敗しました: <white>${e.message}</white>")
             }
         }
     }
 
     /**
-     * 終端1件を forward（クリック点→終端）・backward（終端→クリック点）の2行で表示する。
+     * 終端 1 件を forward（クリック点→終端）・backward（終端→クリック点）の 2 行で表示する。
      * flags の先頭は出発方角で、そのまま railway add の flags 引数に使える。
-     * 始点と終点の最寄り駅が同じ（自駅に戻ってくる）経路は表示しない。
      * backward の分岐フラグは逆走時の分岐の現れ方が異なり算出していないため、
      * 途中分岐なし（flags が出発方角のみ）の場合のみ [作成] を出す。
+     *
+     * 行の組み立て自体は [InspectMessage] が持つ（レールを敷かずにテストできるようにするため）。
      */
     private suspend fun sendEndpoint(player: Player, endpoint: BranchEndpoint) {
-        val label = buildString {
-            append("<yellow>[flags: ${endpoint.flagString()}]</yellow> ")
-            when (endpoint.kind) {
-                EndpointKind.STOP_BLOCK -> append("<gold>[停止ブロック]</gold> ")
-                EndpointKind.LOOP -> append("<gray>[環状/合流]</gray> ")
-                EndpointKind.RAIL_END -> {}
-            }
-        }
+        val label = InspectMessage.label(endpoint)
         val backwardFlags = endpoint.backward.let { backward ->
             val start = backward.start
             val direction = backward.direction
@@ -102,29 +107,15 @@ class RailClickEvent: Listener {
         ).forEach { (data, flags) ->
             val start = data.start ?: return@forEach
             val end = data.end ?: return@forEach
-            val startStation = StationUtils.nearStation(start.toLocation(player.world))
-            val endStation = StationUtils.nearStation(end.toLocation(player.world))
-            if (startStation != null && startStation == endStation) {
-                // 自分の駅に戻ってくる経路は表示しない
-                return@forEach
-            }
-            if (startStation == null || endStation == null) {
-                player.sendRichMessage(
-                    "$label<white>${start.toPlainString()} -> ${end.toPlainString()}</white> <gray>(付近に駅が登録されていません)"
-                )
-                return@forEach
-            }
-            val suggestSlug = startStation.slug.value + "_" + endStation.slug.value
-            val suggestMessage = if (flags != null) {
-                " <click:suggest_command:'/ar railway add $suggestSlug ${start.toPlainString()} " +
-                    "${end.toPlainString()} $flags'><green>[作成]</green></click>"
-            } else {
-                ""
-            }
-            player.sendRichMessage(
-                "$label<white>${startStation.name} : ${start.toPlainString()} -> " +
-                    "${endStation.name} : ${end.toPlainString()}</white>$suggestMessage"
-            )
+            val line = InspectMessage.endpointLine(
+                label = label,
+                startStation = StationUtils.nearStation(start.toLocation(player.world)),
+                endStation = StationUtils.nearStation(end.toLocation(player.world)),
+                start = start,
+                end = end,
+                flags = flags,
+            ) ?: return@forEach
+            player.sendRichMessage(line)
         }
     }
 }

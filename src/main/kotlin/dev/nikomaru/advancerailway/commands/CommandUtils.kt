@@ -22,6 +22,25 @@ import java.time.format.DateTimeFormatter
  */
 fun esc(text: String): String = text.replace("<", "\\<")
 
+/**
+ * 表示名と slug を併記する（`名前 (slug)`）。
+ *
+ * 表示名は覚えやすいが一意とは限らず、slug はコマンドにそのまま打てる。どちらか一方だけを出すと
+ * 「見えている名前でコマンドを打ったら通らない」「slug しか出ないので何の駅か分からない」の
+ * どちらかが起きるため、一覧・詳細・inspect のいずれでも両方を出す。
+ *
+ * 名前はユーザー由来なので必ず [esc] を通す。エスケープを忘れると、名前に含まれる `<` が
+ * MiniMessage のタグとして解釈され、**その後ろに続く `[作成]` などのリンクごと消える**。
+ */
+fun nameWithSlug(name: String, slug: Slug): String =
+    "<white>${esc(name)}</white> <dark_gray>(${slug.value})</dark_gray>"
+
+/**
+ * タグを含まない形の併記（`名前 (slug)`）。
+ * 後段でまとめて [esc] を掛ける経路（経路表示のラベルなど）で使う。
+ */
+fun nameWithSlugPlain(name: String, slug: Slug): String = "$name (${slug.value})"
+
 /** [Color] を MiniMessage の `<color:#RRGGBB>` で使える `#RRGGBB` 形式にする。 */
 fun Color.toHex(): String = "#%02X%02X%02X".format(red, green, blue)
 
