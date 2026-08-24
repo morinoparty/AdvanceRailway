@@ -18,13 +18,12 @@ description: AdvanceRailway の全コマンドと権限
 
 ## 権限（ロール型）
 
-権限は 3 つのロールに集約されています。
+権限は 2 つのロールに集約されています。
 
 | ロール | ノード | 既定 | 内容 |
 | --- | --- | --- | --- |
 | 閲覧 | `advancerailway.user` | **全員** | すべての閲覧コマンド（info / list / route） |
-| 編集 | `advancerailway.manage` | OP | すべての編集コマンド（add / remove / set …）＋ file / reload |
-| 管理 | `advancerailway.admin` | OP | 上記すべて＋ inspect / debug |
+| 管理 | `advancerailway.admin` | OP | 閲覧に加えてすべての編集コマンド（add / remove / set …）＋ file / reload / inspect / debug |
 
 個別のリーフノード: `advancerailway.{station,railway,group}.view`（全員）、
 `advancerailway.railway.route`・`advancerailway.info`（全員）、

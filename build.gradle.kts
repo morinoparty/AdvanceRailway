@@ -186,10 +186,9 @@ sourceSets.main {
             main = "$group.advancerailway.AdvanceRailway"
             authors = listOf("Nikomaru")
 
-            // 権限はロール型の 3 階層で構成する。
-            //   admin  (OP)   … すべての操作。user + manage + 運用系(inspect/debug) を束ねる。
-            //   user   (TRUE) … すべての閲覧。全員がデフォルトで持つ。
-            //   manage (OP)   … すべての編集。op のみ。
+            // 権限はロール型の 2 階層で構成する。
+            //   admin (OP)   … すべての操作。user + 編集系 + 運用系(inspect/debug) を束ねる。
+            //   user  (TRUE) … すべての閲覧。全員がデフォルトで持つ。
             // リーフにも明示的な default を置く。親が default=TRUE でリーフへ true を
             // カスケードする旧構造こそが「全員が書き込み可能」バグの原因だったため、
             // TRUE を持つのは閲覧リーフだけに限定する。回帰は PluginYmlTest が監視する。
@@ -198,7 +197,12 @@ sourceSets.main {
                     default = Permission.Default.OP
                     children(
                         "advancerailway.user",
-                        "advancerailway.manage",
+                        "advancerailway.station.manage",
+                        "advancerailway.station.tp",
+                        "advancerailway.railway.manage",
+                        "advancerailway.group.manage",
+                        "advancerailway.file",
+                        "advancerailway.reload",
                         "advancerailway.inspect",
                         "advancerailway.debug",
                     )
@@ -211,17 +215,6 @@ sourceSets.main {
                         "advancerailway.railway.view",
                         "advancerailway.railway.route",
                         "advancerailway.group.view",
-                    )
-                }
-                register("advancerailway.manage") {
-                    default = Permission.Default.OP
-                    children(
-                        "advancerailway.station.manage",
-                        "advancerailway.station.tp",
-                        "advancerailway.railway.manage",
-                        "advancerailway.group.manage",
-                        "advancerailway.file",
-                        "advancerailway.reload",
                     )
                 }
                 // 閲覧リーフ（全員 TRUE）。
