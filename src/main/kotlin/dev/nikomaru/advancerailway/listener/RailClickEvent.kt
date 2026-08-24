@@ -65,8 +65,10 @@ class RailClickEvent: Listener, KoinComponent {
             try {
                 when (val result = railEndpointInspect(startPoint, player.world)) {
                     is Either.Right -> {
-                        player.sendRichMessage("<green>${result.value.size} 件の終端を検出しました。")
-                        result.value.forEach { endpoint ->
+                        val (endpoints, excluded) = InspectMessage.partitionForDisplay(result.value)
+                        player.sendRichMessage("<green>${endpoints.size} 件の終端を検出しました。")
+                        InspectMessage.excludedNote(excluded)?.let { player.sendRichMessage(it) }
+                        endpoints.forEach { endpoint ->
                             sendEndpoint(player, endpoint)
                         }
                     }
