@@ -9,30 +9,25 @@
 
 package dev.nikomaru.advancerailway.storage.model
 
-import dev.nikomaru.advancerailway.storage.DataPaths
-import dev.nikomaru.advancerailway.storage.serialization.ColorSerializer
-import dev.nikomaru.advancerailway.storage.serialization.writeAtomically
 import dev.nikomaru.advancerailway.domain.id.GroupId
-import dev.nikomaru.advancerailway.utils.Utils.json
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.encodeToString
+import dev.nikomaru.advancerailway.domain.id.Slug
 import java.awt.Color
 
-@Serializable
+/**
+ * グループ（路線）。永続化は
+ * [dev.nikomaru.advancerailway.storage.database.repository.GroupRepository] が担う。
+ *
+ * 駅ナンバリングの接頭辞と開始番号を持つ。個々の駅の番号は、グループ内の駅の並び順
+ * （`group_stations.position`）と合わせて
+ * [dev.nikomaru.advancerailway.domain.numbering.StationNumbering] が組み立てる。
+ */
 data class GroupData(
-    val groupId: GroupId,
+    val id: GroupId,
+    val slug: Slug,
     val name: String,
-    val railwayColor: @Serializable(with = ColorSerializer::class) Color,
-) {
-    fun save() {
-        val file = DataPaths.groups.resolve("${groupId.value}.json")
-        writeAtomically(file, json.encodeToString(this))
-    }
-
-    companion object {
-        fun load(groupId: GroupId): GroupData {
-            val file = DataPaths.groups.resolve("${groupId.value}.json")
-            return json.decodeFromString(file.readText())
-        }
-    }
-}
+    val railwayColor: Color,
+    /** ナンバリングの接頭辞（`JY` など）。null ならこのグループはナンバリングを持たない。 */
+    val numberingPrefix: String? = null,
+    /** ナンバリングの開始番号。 */
+    val numberingStart: Int = 1,
+)

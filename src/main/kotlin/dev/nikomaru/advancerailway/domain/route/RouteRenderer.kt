@@ -89,7 +89,7 @@ object RouteRenderer {
         stationName: (StationId) -> String?,
         groupName: (GroupId) -> String?,
     ): RenderedRoute {
-        fun station(id: StationId): String = stationName(id)?.takeIf { it.isNotBlank() } ?: id.value
+        fun station(id: StationId): String = stationName(id)?.takeIf { it.isNotBlank() } ?: id.toString()
 
         val legs = route.legs.mapIndexed { index, leg ->
             RenderedLeg(
@@ -97,7 +97,7 @@ object RouteRenderer {
                 fromLabel = leg.from?.let { station(it) } ?: originLabel,
                 toLabel = station(leg.to),
                 mode = leg.mode,
-                lineLabel = leg.group?.let { groupName(it)?.takeIf(String::isNotBlank) ?: it.value },
+                lineLabel = leg.group?.let { groupName(it)?.takeIf(String::isNotBlank) ?: it.toString() },
                 railwayId = leg.railwayId,
                 group = leg.group,
                 timeSeconds = leg.timeSeconds,

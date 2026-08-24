@@ -6,7 +6,7 @@ description: 2 駅間の最短経路検索
 # 経路 API
 
 `GET /route?from={id}&to={id}` は 2 駅間の最短（所要時間最小）経路を求めます。`from` / `to` は必須で、
-欠けると `400 Bad Request` を返します。
+欠けると `400 Bad Request` を返します。駅は UUID でも slug でも指定できます。
 
 ## アルゴリズム
 
@@ -18,24 +18,52 @@ description: 2 駅間の最短経路検索
 
 ## レスポンス形式（Route）
 
+駅・路線・グループは UUID で参照します。表示には併記されている名前・slug を使ってください。
+
 ```json
 {
-  "from": "central",
+  "from": "0199c4f0-1a2b-7c3d-8e4f-5a6b7c8d9e0f",
   "fromName": "中央駅",
-  "to": "north",
+  "to": "0199c4f0-1a2b-7c3d-8e4f-bbbbbbbbbbbb",
   "toName": "北駅",
   "totalTime": 150,
-  "stations": ["central", "west", "north"],
+  "stations": [
+    "0199c4f0-1a2b-7c3d-8e4f-5a6b7c8d9e0f",
+    "0199c4f0-1a2b-7c3d-8e4f-cccccccccccc",
+    "0199c4f0-1a2b-7c3d-8e4f-bbbbbbbbbbbb"
+  ],
   "legs": [
-    { "mode": "RAIL", "railway": "central-to-west", "from": "central", "fromName": "中央駅", "to": "west", "toName": "西駅", "timeRequired": 60, "group": "main-line", "line": "本線" },
-    { "mode": "WALK", "railway": null, "from": "west", "fromName": "西駅", "to": "north", "toName": "北駅", "timeRequired": 90, "group": null, "line": null }
+    {
+      "mode": "RAIL",
+      "railway": "0199c4f0-1a2b-7c3d-8e4f-1111aaaa2222",
+      "railwaySlug": "central-to-west",
+      "from": "0199c4f0-1a2b-7c3d-8e4f-5a6b7c8d9e0f",
+      "fromName": "中央駅",
+      "to": "0199c4f0-1a2b-7c3d-8e4f-cccccccccccc",
+      "toName": "西駅",
+      "timeRequired": 60,
+      "group": "0199c4f0-1a2b-7c3d-8e4f-aaaaaaaaaaaa",
+      "line": "本線"
+    },
+    {
+      "mode": "WALK",
+      "railway": null,
+      "railwaySlug": null,
+      "from": "0199c4f0-1a2b-7c3d-8e4f-cccccccccccc",
+      "fromName": "西駅",
+      "to": "0199c4f0-1a2b-7c3d-8e4f-bbbbbbbbbbbb",
+      "toName": "北駅",
+      "timeRequired": 90,
+      "group": null,
+      "line": null
+    }
   ]
 }
 ```
 
 - `mode` は `"RAIL"`（乗車）または `"WALK"`（徒歩）。
 - `fromName` / `toName` は駅の**表示名**、`line` は路線（グループ）の**表示名**です（名前が無ければ ID にフォールバック）。表示には ID ではなくこれらを使ってください。
-- `railway` / `group` / `line` は徒歩区間では `null` です。
+- `railway` / `railwaySlug` / `group` / `line` は徒歩区間では `null` です。
 - `totalTime` は全区間の `timeRequired` の合計（秒）。
 
 ## エラー

@@ -9,113 +9,87 @@
 
 package dev.nikomaru.advancerailway.commands.parser
 
-import dev.nikomaru.advancerailway.storage.DataPaths
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
+import dev.nikomaru.advancerailway.storage.database.table.GroupTable
+import dev.nikomaru.advancerailway.storage.database.table.RailwayTable
+import dev.nikomaru.advancerailway.storage.database.table.StationTable
+import org.jetbrains.exposed.v1.jdbc.selectAll
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.incendo.cloud.context.CommandContext
 import org.incendo.cloud.context.CommandInput
 import org.incendo.cloud.parser.ArgumentParseResult
 import org.incendo.cloud.parser.ArgumentParser
 import org.incendo.cloud.suggestion.BlockingSuggestionProvider
-import java.io.File
+import java.util.UUID
 
-/** 1 件の実体（ファイル名から得た ID と、任意の表示名）。 */
-data class IdEntry(val id: String, val name: String?)
+/** 補完・解決に使う 1 件分の情報。 */
+data class IdEntry(val id: UUID, val slug: String, val name: String?)
 
 /**
- * `data/<type>/` フォルダ配下の JSON を、ID と表示名のインデックスとして扱う純粋ロジック。
- * Koin / Bukkit に依存しないため単体テストできる。
+ * 入力トークンと候補一覧の突き合わせ。Bukkit にもデータベースにも依存しないので単体テストできる。
  */
 object IdIndex {
-    private val json = Json { ignoreUnknownKeys = true }
 
-    /** フォルダ内容＋更新時刻の署名（キャッシュ無効化判定用）。 */
-    fun signature(folder: File): String {
-        val files = folder.listFiles { f: File -> f.isFile && f.extension == "json" }?.sortedBy { it.name }
-            ?: return ""
-        return files.joinToString("|") { "${it.name}:${it.lastModified()}" }
-    }
+    /** 補完候補: 表示名があれば表示名、無ければ slug。 */
+    fun suggestions(entries: List<IdEntry>): Set<String> = entries.map { it.name ?: it.slug }.toSet()
 
     /**
-     * フォルダ内の各 JSON を [IdEntry] として読み込む。
-     * ID はファイル名（拡張子なし）。表示名は [nameField] が指定されていればその JSON フィールドから読む
-     * （空文字・欠落・パース失敗は `null` 扱い）。
+     * 入力を表示名 → slug → UUID の順に解決する。
+     * どれにも一致しなければ null（コマンド側でエラーメッセージを出す）。
      */
-    fun read(folder: File, nameField: String?): List<IdEntry> {
-        val files = folder.listFiles { f: File -> f.isFile && f.extension == "json" }?.sortedBy { it.name }
-            ?: return emptyList()
-        return files.map { file ->
-            val name = nameField?.let { field ->
-                runCatching { json.parseToJsonElement(file.readText()).jsonObject[field]?.jsonPrimitive?.contentOrNull }
-                    .getOrNull()
-            }
-            IdEntry(file.nameWithoutExtension, name?.takeIf { it.isNotBlank() })
-        }
-    }
-
-    /** 補完候補: 名前があれば名前、無ければ ID。 */
-    fun suggestions(entries: List<IdEntry>): Set<String> = entries.map { it.name ?: it.id }.toSet()
-
-    /** 入力を、まず表示名として、次に ID として解決する（名前が一致すればその ID、しなければ入力そのもの）。 */
-    fun resolveId(entries: List<IdEntry>, token: String): String =
-        entries.firstOrNull { it.name == token }?.id ?: token
+    fun resolve(entries: List<IdEntry>, token: String): UUID? =
+        entries.firstOrNull { it.name == token }?.id
+            ?: entries.firstOrNull { it.slug == token }?.id
+            ?: entries.firstOrNull { it.id.toString() == token }?.id
 }
 
 /**
- * Shared implementation for id parsers (Group/Railway/Station) that are all backed by a
- * per-type subfolder under the plugin's data directory (e.g. files under `data/groups/`).
+ * 駅・路線・グループの ID 引数に共通のパーサ。
  *
- * When [nameField] is provided, entries also expose a **human-readable display name**. Suggestions then
- * offer the names (nobody can memorise ids like `fti`), and [resolve] accepts either the display name or
- * the raw id. When [nameField] is null (e.g. railways, which have no name), suggestions and resolution
- * fall back to ids only.
+ * 補完には slug ではなく**表示名**を出す（`fti` のような slug は覚えられない）。解決は
+ * 表示名・slug・UUID のいずれでも通る。以前はデータフォルダを走査して署名でキャッシュしていたが、
+ * 現在はデータベースへ直接問い合わせる（数百行の SQLite クエリで、補完のたびに引いても十分速い）。
+ *
+ * parse / suggestions は Cloud の asyncCoordinator・補完スレッド上で呼ばれるため、
+ * ブロッキングな JDBC アクセスをそのまま行ってよい。
  */
 abstract class IdParser<C, T : Any>(
-    private val subfolder: String,
-    private val idFactory: (String) -> T,
-    /** JSON field holding the display name, or null if this entity type has no name. */
-    private val nameField: String? = null,
+    private val entriesProvider: () -> List<IdEntry>,
+    private val idFactory: (UUID) -> T,
 ) : ArgumentParser<C, T>, BlockingSuggestionProvider.Strings<C> {
 
-    private val folder get() = DataPaths.of(subfolder)
-
-    // 補完はキーストローク毎に呼ばれるため、フォルダ署名でキャッシュし変化が無ければ再パースしない。
-    @Volatile
-    private var cache: Pair<String, List<IdEntry>>? = null
-
-    /** Ensures the backing data folder exists. Call once at startup, never from suggestions. */
-    fun ensureDataFolder() {
-        if (!folder.exists()) {
-            folder.mkdirs()
-        }
-    }
-
-    private fun entries(): List<IdEntry> {
-        val signature = IdIndex.signature(folder)
-        cache?.let { (cachedSig, cached) -> if (cachedSig == signature) return cached }
-        val fresh = IdIndex.read(folder, nameField)
-        cache = signature to fresh
-        return fresh
-    }
-
-    // parse / suggestions は Cloud の asyncCoordinator・補完スレッド上で呼ばれるため、
-    // ブロッキング IO（フォルダ読み取り）をそのまま行ってよい。
     override fun parse(
         commandContext: CommandContext<C & Any>,
         commandInput: CommandInput,
     ): ArgumentParseResult<T> {
         val token = commandInput.readString()
-        val id = IdIndex.resolveId(entries(), token)
-        return runCatching { idFactory(id) }.fold(
-            onSuccess = { ArgumentParseResult.success(it) },
-            onFailure = { ArgumentParseResult.failure(IllegalArgumentException("ID が不正です: $token")) },
-        )
+        val id = IdIndex.resolve(entriesProvider(), token)
+            ?: return ArgumentParseResult.failure(IllegalArgumentException("見つかりません: $token"))
+        return ArgumentParseResult.success(idFactory(id))
     }
 
     override fun stringSuggestions(
         commandContext: CommandContext<C>,
         input: CommandInput,
-    ): Iterable<String> = IdIndex.suggestions(entries())
+    ): Iterable<String> = IdIndex.suggestions(entriesProvider())
+}
+
+/** 各エンティティの補完候補をデータベースから引く。 */
+object IdEntries {
+
+    fun stations(): List<IdEntry> = transaction {
+        StationTable.selectAll().map {
+            IdEntry(it[StationTable.id].value, it[StationTable.slug], it[StationTable.name].ifBlank { null })
+        }
+    }
+
+    fun groups(): List<IdEntry> = transaction {
+        GroupTable.selectAll().map {
+            IdEntry(it[GroupTable.id].value, it[GroupTable.slug], it[GroupTable.name].ifBlank { null })
+        }
+    }
+
+    /** 路線は表示名を持たないため slug のみで解決する。 */
+    fun railways(): List<IdEntry> = transaction {
+        RailwayTable.selectAll().map { IdEntry(it[RailwayTable.id].value, it[RailwayTable.slug], null) }
+    }
 }

@@ -1,6 +1,6 @@
 ---
 title: 路線 API
-description: 路線の取得
+description: 路線の取得・作成（レールの自動トレース）・更新・削除
 ---
 
 # 路線 API
@@ -9,24 +9,89 @@ description: 路線の取得
 
 ```json
 {
-  "id": "central-to-north",
-  "group": "main-line",
+  "id": "0199c4f0-1a2b-7c3d-8e4f-1111aaaa2222",
+  "slug": "central-to-north",
+  "group": "0199c4f0-1a2b-7c3d-8e4f-aaaaaaaaaaaa",
+  "groupSlug": "main-line",
   "world": "world",
   "lineType": "UP_LINE",
-  "fromStation": "central",
-  "toStation": "north",
+  "fromStation": "0199c4f0-1a2b-7c3d-8e4f-5a6b7c8d9e0f",
+  "fromStationSlug": "central",
+  "toStation": "0199c4f0-1a2b-7c3d-8e4f-bbbbbbbbbbbb",
+  "toStationSlug": "north",
   "timeRequired": 30,
   "startPoint": { "x": 0.0, "y": 64.0, "z": 0.0 },
-  "endPoint": { "x": 100.0, "y": 64.0, "z": 0.0 }
+  "endPoint": { "x": 100.0, "y": 64.0, "z": 0.0 },
+  "flags": "EE",
+  "lastCheckedAt": "2026-08-24T03:04:05Z"
 }
 ```
 
-- `group` は所属グループが無ければ `null`。
+- `group` / `groupSlug` は所属グループが無ければ `null`。
 - `timeRequired` は所要時間（秒）。
+- `flags` は始点からの出発方角（1 文字目）と各分岐点で選ぶ方角の並びです（`N` / `S` / `E` / `W`）。
+- `lastCheckedAt` は**経路が実際のレールと一致することを最後に確認できた時刻**（ISO-8601）です。
+  `ar railway check` が成功したときと、経路をトレースして作成・引き直したときにだけ更新されます。
+  検証に失敗しても更新されないため、「いつから未確認か」がそのまま読み取れます。一度も確認していなければ `null`。
 
 ## 一覧・単体取得
 
 - `GET /railways` — 全路線を一覧取得します（[ページング](/docs/mineauth-api#ページング)対応）。
 - `GET /railways/{id}` — 路線を 1 件取得します。存在しなければ `404`。
+
+## 作成
+
+`POST /railways` は**サーバー側で実際のレールをトレース**して経路を求め、`201 Created` を返します。
+入力はゲーム内の `ar railway add` と同じです。
+
+```json
+{
+  "slug": "central-to-north",
+  "world": "world",
+  "startPoint": { "x": 0.0, "y": 64.0, "z": 0.0 },
+  "endPoint": { "x": 100.0, "y": 64.0, "z": 0.0 },
+  "flags": "EE",
+  "group": "main-line",
+  "lineType": "UP_DOWN_LINE"
+}
+```
+
+- `group` / `lineType` は省略できます（`lineType` の既定は `UP_DOWN_LINE`）。
+- `fromStation` / `toStation` を省略すると、始点・終点それぞれの最寄り駅が自動的に選ばれます。
+- 所要時間はトレースしたレールの長さから自動計算されます。
+
+:::note
+トレースはワールドのブロックを読むため、サーバーのメインスレッドで実行されます。
+未ロードのチャンクを同期ロードすることがあるので、大量の路線を連続で作成するときは注意してください。
+:::
+
+## 更新
+
+`PATCH /railways/{id}` は指定したフィールドだけを変更します
+（[部分更新の規約](/docs/mineauth-api#部分更新patchの規約) 参照）。
+
+変更できるのは `slug` / `group` / `lineType` / `timeRequired` / `fromStation` / `toStation` と、
+経路の引き直しに使う `startPoint` / `endPoint` / `flags` です。
+グループを外す場合は `{ "unset": ["group"] }` を指定します。
+
+**`startPoint`・`endPoint`・`flags` が 3 つとも指定された場合のみ経路を引き直します。**
+引き直しに成功すると `lastCheckedAt` はその時刻に更新されます。指定しなければ経路も
+`lastCheckedAt` もそのまま維持されます。
+
+## 削除
+
+`DELETE /railways/{id}` は路線を削除し `{ "deleted": true }` を返します。
+路線は他から参照されないため、駅・グループと違って競合はありません。
+
+## エラー
+
+| ステータス | `code` | 条件 |
+| --- | --- | --- |
+| `404 Not Found` | `railway_not_found` | 指定した路線が存在しない |
+| `404 Not Found` | `station_not_found` | 端点の駅が見つからない（座標付近に駅が無い場合を含む） |
+| `409 Conflict` | `slug_conflict` | `slug` が他の路線で使われている |
+| `422 Unprocessable Entity` | `invalid_flags` | `flags` が `N`/`S`/`E`/`W` 以外を含む、または空 |
+| `422 Unprocessable Entity` | `trace_failed` | 指定した flags でレールをたどれなかった |
+| `422 Unprocessable Entity` | `world_not_found` | `world` に該当するワールドが無い |
 
 関連: [駅に接続する路線](/docs/mineauth-api/stations#接続する路線)・[グループに属する路線](/docs/mineauth-api/groups#属する路線)

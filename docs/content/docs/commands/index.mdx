@@ -12,9 +12,8 @@ description: AdvanceRailway の全コマンドと権限
 
 - [一般コマンド](/docs/commands/general) — info / help / reload / **inspect（線路の解析）** / debug
 - [駅コマンド](/docs/commands/station) — 駅の追加・編集・一覧
-- [路線コマンド](/docs/commands/railway) — 路線の追加（分岐フラグ対応）・引き直し・**V2 への移行**・経路検索
-- [グループコマンド](/docs/commands/group) — グループ（路線名・色）の管理
-- [ファイルコマンド](/docs/commands/file) — データのエクスポート・インポート
+- [路線コマンド](/docs/commands/railway) — 路線の追加（分岐フラグ対応）・引き直し・**経路の検証**・経路検索
+- [グループコマンド](/docs/commands/group) — グループ（路線名・色・**駅ナンバリング**）の管理
 
 ## 権限（ロール型）
 
@@ -23,11 +22,11 @@ description: AdvanceRailway の全コマンドと権限
 | ロール | ノード | 既定 | 内容 |
 | --- | --- | --- | --- |
 | 閲覧 | `advancerailway.user` | **全員** | すべての閲覧コマンド（info / list / route） |
-| 管理 | `advancerailway.admin` | OP | 閲覧に加えてすべての編集コマンド（add / remove / set …）＋ file / reload / inspect / debug |
+| 管理 | `advancerailway.admin` | OP | 閲覧に加えてすべての編集コマンド（add / remove / set …）＋ reload / inspect / debug |
 
 個別のリーフノード: `advancerailway.{station,railway,group}.view`（全員）、
 `advancerailway.railway.route`・`advancerailway.info`（全員）、
-`advancerailway.{station,railway,group}.manage`・`advancerailway.file`・`advancerailway.reload`・
+`advancerailway.{station,railway,group}.manage`・`advancerailway.reload`・
 `advancerailway.inspect`・`advancerailway.debug`（OP）。
 
 :::warning
@@ -42,3 +41,8 @@ description: AdvanceRailway の全コマンドと権限
 :::
 
 座標引数（`point` / `start` / `direction` / `end`）は `x,y,z` のカンマ区切りで指定します。
+
+:::note
+駅・路線・グループは内部的に UUID を主キーに持ち、`mr01` のような短い識別子は **slug** として別に持ちます。
+コマンドの ID 引数には表示名・slug・UUID のいずれを渡しても解決されます。
+:::

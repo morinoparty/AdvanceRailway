@@ -63,21 +63,10 @@ object Point3DSerializer: KSerializer<Point3D> {
 object Line3DSerializer: KSerializer<Line3D> {
     override val descriptor = PrimitiveSerialDescriptor("Line3D", PrimitiveKind.STRING)
 
-    override fun deserialize(decoder: Decoder): Line3D {
-        val points = decoder.decodeString().split(":").map { it.drop(1) }.map { it.dropLast(1) }.map { it.split(",") }
-            .map { Point3D(it[0].toDouble(), it[1].toDouble(), it[2].toDouble()) }
-        // addPoint は共線点の圧縮を伴い、保存時と点列が変わりうる（redraw 直後でも
-        // /ar railway check が「経路変化」を誤検出していた原因）。保存された点列をそのまま復元する。
-        val line = Line3D(points[0], points[1])
-        line.points = ArrayList(points)
-        return line
-    }
+    // 文字列表現はデータベースの `line` 列と共通なので、変換は Line3DCodec に集約する。
+    override fun deserialize(decoder: Decoder): Line3D = Line3DCodec.decode(decoder.decodeString())
 
-    override fun serialize(encoder: Encoder, value: Line3D) {
-        val points = value.points
-        val str = points.joinToString(":") { "(${it.x},${it.y},${it.z})" }
-        encoder.encodeString(str)
-    }
+    override fun serialize(encoder: Encoder, value: Line3D) = encoder.encodeString(Line3DCodec.encode(value))
 }
 
 object ColorSerializer: KSerializer<Color> {

@@ -10,64 +10,80 @@
 package dev.nikomaru.advancerailway.commands.railway
 
 import dev.nikomaru.advancerailway.commands.esc
+import dev.nikomaru.advancerailway.commands.formatCheckedAt
 import dev.nikomaru.advancerailway.commands.formatMinutes
-import dev.nikomaru.advancerailway.commands.getOrSend
 import dev.nikomaru.advancerailway.commands.sendPaginated
 import dev.nikomaru.advancerailway.commands.toHex
-import dev.nikomaru.advancerailway.storage.DataPaths
-import dev.nikomaru.advancerailway.storage.model.GroupData
-import dev.nikomaru.advancerailway.storage.model.RailwayData
-import dev.nikomaru.advancerailway.domain.id.GroupId
-import dev.nikomaru.advancerailway.domain.id.IdValidation
 import dev.nikomaru.advancerailway.domain.id.RailwayId
-import dev.nikomaru.advancerailway.domain.id.StationId
-import dev.nikomaru.advancerailway.domain.service.GroupUtils
-import dev.nikomaru.advancerailway.domain.service.RailwayUtils
-import dev.nikomaru.advancerailway.domain.service.StationUtils
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import dev.nikomaru.advancerailway.storage.database.repository.GroupRepository
+import dev.nikomaru.advancerailway.storage.database.repository.RailwayRepository
+import dev.nikomaru.advancerailway.storage.database.repository.StationRepository
+import dev.nikomaru.advancerailway.storage.model.GroupData
 import org.bukkit.command.CommandSender
 import org.incendo.cloud.annotations.Argument
 import org.incendo.cloud.annotations.Command
 import org.incendo.cloud.annotations.CommandDescription
 import org.incendo.cloud.annotations.Default
 import org.incendo.cloud.annotations.Permission
+import org.koin.core.component.KoinComponent
+import org.koin.core.component.inject
 
 /** 路線の閲覧コマンド（`/ar railway info|list`）。全員が実行できる（`advancerailway.railway.view`）。 */
 @Command("ar|advancerailway railway")
-class RailwayInfoCommand {
+class RailwayInfoCommand : KoinComponent {
+
+    private val railwayRepository: RailwayRepository by inject()
+    private val stationRepository: StationRepository by inject()
+    private val groupRepository: GroupRepository by inject()
 
     @Command("info <railwayId>")
-    @CommandDescription("路線の詳細（駅間・所要時間）を表示します")
+    @CommandDescription("路線の詳細（駅間・所要時間・最終確認）を表示します")
     @Permission("advancerailway.railway.view")
     suspend fun info(sender: CommandSender, @Argument("railwayId") railwayId: RailwayId) {
-        val data = RailwayUtils.getRailwayData(railwayId).getOrSend(sender) { "<red>路線が見つかりません。" } ?: return
-        val id = data.id.value
-        val fromName = resolveStationName(data.fromStation)
-        val toName = resolveStationName(data.toStation)
-        val groupData = data.group?.let { GroupUtils.getGroupData(it).getOrNull() }
+        val data = railwayRepository.findById(railwayId) ?: run {
+            sender.sendRichMessage("<red>路線が見つかりません。")
+            return
+        }
+        val slug = data.slug.value
+        val fromStation = stationRepository.findById(data.fromStation)
+        val toStation = stationRepository.findById(data.toStation)
+        val fromName = fromStation?.name ?: data.fromStation.toString()
+        val toName = toStation?.name ?: data.toStation.toString()
+        val groupData = data.group?.let { groupRepository.findById(it) }
 
         sender.sendRichMessage(
-            "<dark_gray>━━ ${groupMarker(groupData)} <aqua><bold>路線 $id</bold></aqua> <dark_gray>━━"
+            "<dark_gray>━━ ${groupMarker(groupData)} <aqua><bold>路線 $slug</bold></aqua> <dark_gray>━━"
         )
+        sender.sendRichMessage("<gray>ID: <dark_gray>${data.id}</dark_gray>")
         if (groupData != null) {
             val hex = groupData.railwayColor.toHex()
             sender.sendRichMessage(
                 "<gray>グループ: <color:$hex>${esc(groupData.name)}</color> " +
-                    "<dark_gray>(${data.group?.value})</dark_gray> " +
-                    "<click:suggest_command:'/ar railway set group $id <group>'><dark_gray>[編集]</dark_gray></click>"
+                    "<dark_gray>(${groupData.slug.value})</dark_gray> " +
+                    "<click:suggest_command:'/ar railway set group $slug <group>'><dark_gray>[編集]</dark_gray></click>"
             )
         } else {
             sender.sendRichMessage(
                 "<gray>グループ: <gray>— " +
-                    "<click:suggest_command:'/ar railway set group $id <group>'><dark_gray>[編集]</dark_gray></click>"
+                    "<click:suggest_command:'/ar railway set group $slug <group>'><dark_gray>[編集]</dark_gray></click>"
             )
         }
-        sender.sendRichMessage("<gray>区間: <white>${esc(fromName)}</white> <yellow>→</yellow> <white>${esc(toName)}</white>")
+        sender.sendRichMessage(
+            "<gray>区間: <white>${esc(fromName)}</white> <yellow>→</yellow> <white>${esc(toName)}</white>"
+        )
         sender.sendRichMessage("<gray>所要時間: <white>${formatMinutes(data.timeRequired)}</white>")
         sender.sendRichMessage(
             "<gray>種別: <white>${data.lineType}</white> " +
-                "<click:suggest_command:'/ar railway set line-type $id <lineType>'><dark_gray>[編集]</dark_gray></click>"
+                "<click:suggest_command:'/ar railway set line-type $slug <lineType>'><dark_gray>[編集]</dark_gray></click>"
+        )
+        sender.sendRichMessage(
+            "<gray>最終確認: <white>${formatCheckedAt(data.lastCheckedAt)}</white> " +
+                (
+                    fromStation?.let {
+                        "<click:run_command:'/ar railway check --station ${it.slug.value}'>" +
+                            "<dark_gray>[検証]</dark_gray></click>"
+                    } ?: ""
+                    )
         )
     }
 
@@ -75,9 +91,9 @@ class RailwayInfoCommand {
     @CommandDescription("登録されている路線の一覧をページ表示します")
     @Permission("advancerailway.railway.view")
     suspend fun list(sender: CommandSender, @Argument("page") @Default("1") page: Int) {
-        val railways = loadAllRailwayData()
-        val stationNames = loadStationNames()
-        val groups = loadGroupData()
+        val railways = railwayRepository.findAll()
+        val stationNames = stationRepository.findAll().associate { it.id to it.name }
+        val groups = groupRepository.findAll().associateBy { it.id }
         sender.sendPaginated(
             items = railways,
             page = page,
@@ -85,53 +101,20 @@ class RailwayInfoCommand {
             empty = "<gray>路線が登録されていません。",
             pageCommand = "/ar railway list",
         ) {
-            val id = it.id.value
-            val fromName = stationNames[it.fromStation] ?: it.fromStation.value
-            val toName = stationNames[it.toStation] ?: it.toStation.value
+            val slug = it.slug.value
+            val fromName = stationNames[it.fromStation] ?: it.fromStation.toString()
+            val toName = stationNames[it.toStation] ?: it.toStation.toString()
             val marker = it.group?.let { g -> groups[g] }
                 ?.let { gd -> "<color:${gd.railwayColor.toHex()}>■</color>" }
                 ?: "<gray>■</gray>"
-            "$marker <white>$id</white> " +
+            "$marker <white>$slug</white> " +
                 "<gray>${esc(fromName)} <yellow>→</yellow> ${esc(toName)}</gray> " +
                 "<dark_gray>(${formatMinutes(it.timeRequired)})</dark_gray> " +
-                "<click:run_command:/ar railway info $id><dark_gray>[詳細]</dark_gray></click>"
+                "<click:run_command:/ar railway info $slug><dark_gray>[詳細]</dark_gray></click>"
         }
     }
 
     /** グループ色の四角マーカー。グループ未設定なら灰色。 */
     private fun groupMarker(groupData: GroupData?): String =
         groupData?.let { "<color:${it.railwayColor.toHex()}>■</color>" } ?: "<gray>■</gray>"
-
-    /** 駅 ID を表示名に解決する。解決できなければ ID をそのまま返す。 */
-    private suspend fun resolveStationName(id: StationId): String =
-        StationUtils.getStationData(id).getOrNull()?.name?.takeIf { it.isNotBlank() } ?: id.value
-
-    /** data/railways/ 配下のすべての路線データを読み込む。 */
-    private suspend fun loadAllRailwayData(): List<RailwayData> = withContext(Dispatchers.IO) {
-        listIds("railways")
-            .mapNotNull { RailwayUtils.getRailwayData(RailwayId(it)).getOrNull() }
-            .sortedBy { it.id.value }
-    }
-
-    /** 駅 ID → 表示名のマップを 1 回だけ作る。 */
-    private suspend fun loadStationNames(): Map<StationId, String> = withContext(Dispatchers.IO) {
-        listIds("stations")
-            .mapNotNull { StationUtils.getStationData(StationId(it)).getOrNull() }
-            .associate { it.stationId to it.name }
-    }
-
-    /** グループ ID → GroupData のマップを 1 回だけ作る。 */
-    private suspend fun loadGroupData(): Map<GroupId, GroupData> = withContext(Dispatchers.IO) {
-        listIds("groups")
-            .mapNotNull { GroupUtils.getGroupData(GroupId(it)).getOrNull() }
-            .associateBy { it.groupId }
-    }
-
-    /** data/{type}/ 配下の JSON ファイル名を、allowlist を満たす ID として列挙する。 */
-    private fun listIds(type: String): List<String> =
-        DataPaths.of(type).listFiles()
-            ?.filter { it.isFile && it.extension == "json" }
-            ?.map { it.nameWithoutExtension }
-            ?.filter { IdValidation.isValid(it) }
-            ?: emptyList()
 }

@@ -1,12 +1,12 @@
 ---
 title: MineAuth HTTP API
-description: 駅・路線・グループ・経路を JSON で取得する読み取り専用 API
+description: 駅・路線・グループ・経路を JSON で取得し、外部から編集する API
 ---
 
 # MineAuth HTTP API
 
 MineAuth プラグインを AdvanceRailway と同時に導入している場合（MineAuth は任意の依存で、無くても AdvanceRailway は動作します）、
-AdvanceRailway は以下のベースパス配下に、認証付き・読み取り専用の HTTP エンドポイントを登録します。
+AdvanceRailway は以下のベースパス配下に、認証付きの HTTP エンドポイントを登録します。
 
 ```
 /api/v1/plugins/advancerailway/
@@ -14,7 +14,12 @@ AdvanceRailway は以下のベースパス配下に、認証付き・読み取�
 
 MineAuth が未導入の場合、これらのエンドポイントは登録されません。
 
+データは AdvanceRailway のデータベースに入っており、この API が唯一の外部インターフェースです
+（JSON ファイルによる入出力コマンド `ar file` は廃止されました）。
+
 ## エンドポイント
+
+### 読み取り
 
 | メソッド | パス | 説明 | 詳細 |
 | --- | --- | --- | --- |
@@ -27,11 +32,42 @@ MineAuth が未導入の場合、これらのエンドポイントは登録さ�
 | GET | `/groups` | 全グループを一覧取得 | [グループ API](/docs/mineauth-api/groups) |
 | GET | `/groups/{id}` | グループを 1 件取得 | [グループ API](/docs/mineauth-api/groups) |
 | GET | `/groups/{id}/railways` | そのグループに属する路線一覧 | [グループ API](/docs/mineauth-api/groups) |
+| GET | `/groups/{id}/stations` | グループ内の駅の並びとナンバリング | [グループ API](/docs/mineauth-api/groups) |
 | GET | `/route?from={id}&to={id}` | 2 駅間の最短経路を取得 | [経路 API](/docs/mineauth-api/route) |
 | GET | `/stats` | ネットワークの件数サマリ | 下記 |
 
+### 書き込み
+
+| メソッド | パス | 説明 | 成功 |
+| --- | --- | --- | --- |
+| POST | `/stations` | 駅を作成 | `201` |
+| PATCH | `/stations/{id}` | 駅を部分更新 | `200` |
+| DELETE | `/stations/{id}` | 駅を削除 | `200` |
+| POST | `/railways` | 路線を作成（レールを自動トレース） | `201` |
+| PATCH | `/railways/{id}` | 路線を部分更新・経路の引き直し | `200` |
+| DELETE | `/railways/{id}` | 路線を削除 | `200` |
+| POST | `/groups` | グループを作成 | `201` |
+| PATCH | `/groups/{id}` | グループを部分更新 | `200` |
+| DELETE | `/groups/{id}` | グループを削除 | `200` |
+| PUT | `/groups/{id}/stations` | グループ内の駅の並びを一括設定 | `200` |
+
 パスはベースパスからの相対です（例: 駅一覧の完全パスは `/api/v1/plugins/advancerailway/stations`）。
-存在しない ID を指定した取得は HTTP `404 Not Found` を返します。レスポンスはすべて JSON です。
+レスポンスはすべて JSON です。削除は `{ "deleted": true }` を返します。
+
+## 識別子（id と slug）
+
+各エンティティは 2 つの識別子を持ちます。
+
+- **`id`** — UUIDv7 の主キー。作成時にサーバーが採番し、以後変わりません。エンティティ同士の参照はこれで行われます。
+- **`slug`** — `central` のような人間が読み書きする短い識別子。一意ですが、後から変更できます。
+
+**パスの `{id}` はどちらでも受け付けます**（UUID として解釈できなければ slug として扱います）。
+参照を保存する用途には `id` を、URL やログの読みやすさには `slug` を使ってください。
+
+:::warning
+以前のバージョンでは `id` フィールドに `central` のような文字列が入っていました。
+現在その値は `slug` に移り、`id` は UUID になっています。
+:::
 
 ## 認証
 
@@ -43,7 +79,7 @@ MineAuth が未導入の場合、これらのエンドポイントは登録さ�
 - **プレイヤーのユーザートークン** — `advancerailway.admin` を持つプレイヤーのみ。
   権限を持たないプレイヤーのトークンは拒否されます。
 
-座標などの情報を含むため、サービストークンは信頼できるバックエンド連携にのみ発行してください。
+座標などの情報を含み、データの書き換えもできるため、サービストークンは信頼できるバックエンド連携にのみ発行してください。
 
 :::note
 ユーザートークンのパーミッション判定はオンラインのプレイヤーに対して行われます。
@@ -51,6 +87,31 @@ MineAuth が未導入の場合、これらのエンドポイントは登録さ�
 :::
 
 設定で連携を無効化することもできます（プラグイン設定の `mineAuthEnabled: false`）。
+
+## 部分更新（PATCH）の規約
+
+更新系のリクエストボディは全フィールドが省略可能で、**`null` は「変更しない」**を意味します。
+JSON では「キーが無い」と「明示的な `null`」を区別できないため、値を**消したい**場合は
+`unset` にフィールド名を並べます。
+
+```json
+{ "name": "新しい名前", "unset": ["overrideSize"] }
+```
+
+`unset` に対応しているのは、消せる意味を持つフィールドだけです
+（駅の `overrideSize`、グループの `numberingPrefix`、路線の `group`）。
+
+## エラー
+
+エラーは機械可読な `code` を持ちます。全エンドポイントに共通するものは次のとおりです。
+
+| ステータス | `code` | 条件 |
+| --- | --- | --- |
+| `404 Not Found` | `station_not_found` / `railway_not_found` / `group_not_found` | 指定した ID・slug が存在しない |
+| `409 Conflict` | `slug_conflict` | その slug が既に使われている |
+| `409 Conflict` | `station_in_use` / `group_in_use` | 参照している路線があるため削除できない |
+| `422 Unprocessable Entity` | `invalid_slug` | slug に英数字・`_`・`-` 以外が含まれる |
+| `422 Unprocessable Entity` | `invalid_color` | 色が `#RRGGBB` 形式でない |
 
 ## ページング
 

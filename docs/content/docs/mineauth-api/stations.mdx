@@ -1,6 +1,6 @@
 ---
 title: 駅 API
-description: 駅の取得・接続路線・近傍検索
+description: 駅の取得・作成・更新・削除、接続路線、近傍検索
 ---
 
 # 駅 API
@@ -9,9 +9,47 @@ description: 駅の取得・接続路線・近傍検索
 
 ```json
 {
-  "id": "central",
+  "id": "0199c4f0-1a2b-7c3d-8e4f-5a6b7c8d9e0f",
+  "slug": "central",
   "name": "中央駅",
-  "numbering": "M01",
+  "world": "world",
+  "point": { "x": 0.0, "y": 64.0, "z": 0.0 },
+  "overrideSize": null,
+  "color": "#FF0000",
+  "numberings": [
+    {
+      "group": "0199c4f0-1a2b-7c3d-8e4f-aaaaaaaaaaaa",
+      "groupSlug": "main-line",
+      "groupName": "本線",
+      "position": 0,
+      "numbering": "M01"
+    }
+  ]
+}
+```
+
+- `id` は UUIDv7 の主キー、`slug` は人間が読み書きする識別子です。パスにはどちらを渡しても構いません。
+- `numberings` は**駅が属するグループごと**の駅ナンバリングです。ナンバリングは駅ではなく
+  グループ（路線）が持つ接頭辞・開始番号と、グループ内の並び順から決まります。
+  乗換駅は複数の要素を持ち、接頭辞を持たないグループでは `numbering` が `null` になります。
+  並び順の設定は [グループ API](/docs/mineauth-api/groups#駅の並びナンバリング順) を参照してください。
+- `overrideSize` は `null` になり得ます。
+- `color` は `#RRGGBB` 形式です。
+
+## 一覧・単体取得
+
+- `GET /stations` — 全駅を一覧取得します（[ページング](/docs/mineauth-api#ページング)対応）。
+- `GET /stations/{id}` — 駅を 1 件取得します。存在しなければ `404`。
+
+## 作成
+
+`POST /stations` は駅を新規作成し、`201 Created` と作成された Station を返します。
+主キーはサーバー側で採番されるため、リクエストには含めません。
+
+```json
+{
+  "slug": "central",
+  "name": "中央駅",
   "world": "world",
   "point": { "x": 0.0, "y": 64.0, "z": 0.0 },
   "overrideSize": null,
@@ -19,13 +57,25 @@ description: 駅の取得・接続路線・近傍検索
 }
 ```
 
-- `numbering` と `overrideSize` は `null` になり得ます。
-- `color` は `#RRGGBB` 形式です。
+- `color` を省略すると、`slug` から決定論的に導出した色が設定されます。
 
-## 一覧・単体取得
+## 更新
 
-- `GET /stations` — 全駅を一覧取得します（[ページング](/docs/mineauth-api#ページング)対応）。
-- `GET /stations/{id}` — 駅を 1 件取得します。存在しなければ `404`。
+`PATCH /stations/{id}` は指定したフィールドだけを変更します
+（[部分更新の規約](/docs/mineauth-api#部分更新patchの規約) 参照）。
+
+```json
+{ "name": "中央", "point": { "x": 1.0, "y": 64.0, "z": 2.0 } }
+```
+
+変更できるのは `slug` / `name` / `world` / `point` / `overrideSize` / `color` です。
+`overrideSize` を消したい場合は `{ "unset": ["overrideSize"] }` を指定します。
+
+## 削除
+
+`DELETE /stations/{id}` は駅を削除し `{ "deleted": true }` を返します。
+その駅を始点・終点とする路線が 1 つでもあると削除できず、`409`（`code: station_in_use`）を返します。
+`details.railways` に該当する路線の slug がカンマ区切りで入るので、先に路線を消すか付け替えてください。
 
 ## 接続する路線
 

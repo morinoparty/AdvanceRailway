@@ -1,26 +1,77 @@
 ---
 title: グループ API
-description: グループ（路線名）の取得
+description: グループ（路線名・色・駅ナンバリング）の取得と編集
 ---
 
 # グループ API
+
+グループは「〇〇線」という路線名を表し、色と**駅ナンバリング**を持ちます。
 
 ## レスポンス形式（Group）
 
 ```json
 {
-  "id": "main-line",
+  "id": "0199c4f0-1a2b-7c3d-8e4f-aaaaaaaaaaaa",
+  "slug": "main-line",
   "name": "本線",
-  "color": "#00A0FF"
+  "color": "#00A0FF",
+  "numberingPrefix": "M",
+  "numberingStart": 1
 }
 ```
+
+- `numberingPrefix` が `null` のグループはナンバリングを持ちません。
+- `numberingStart` は駅番号の開始値です（既定 `1`）。
 
 ## 一覧・単体取得
 
 - `GET /groups` — 全グループを一覧取得します（[ページング](/docs/mineauth-api#ページング)対応）。
 - `GET /groups/{id}` — グループを 1 件取得します。存在しなければ `404`。
 
+## 作成・更新・削除
+
+- `POST /groups` — グループを作成し `201 Created` を返します。
+  ボディは `slug`（必須）・`name`（必須）・`color`・`numberingPrefix`・`numberingStart`。
+  `color` を省略するとランダムな色が割り当てられます。
+- `PATCH /groups/{id}` — 指定したフィールドだけを変更します。ナンバリングを無効化するには
+  `{ "unset": ["numberingPrefix"] }` を指定します（[部分更新の規約](/docs/mineauth-api#部分更新patchの規約)）。
+- `DELETE /groups/{id}` — グループを削除し `{ "deleted": true }` を返します。
+  そのグループに属する路線があると削除できず、`409`（`code: group_in_use`）を返します。
+
 ## 属する路線
 
 - `GET /groups/{id}/railways` — そのグループ（路線）に属する路線を
   [`/railways`](/docs/mineauth-api/railways) と同じ形式（`{ "railways": [ ... ] }`）で返します。グループが存在しなければ `404`。
+
+## 駅の並び（ナンバリング順）
+
+駅番号は駅自身ではなくグループが決めます。並び順を `position`（0 始まり）で持ち、
+`numberingPrefix + (numberingStart + position)`（2 桁ゼロ埋め）で番号を組み立てます。
+
+### 取得
+
+`GET /groups/{id}/stations` は並び順で駅を返します。
+
+```json
+{
+  "stations": [
+    { "position": 0, "numbering": "M01", "station": { "slug": "central", "...": "..." } },
+    { "position": 1, "numbering": "M02", "station": { "slug": "north", "...": "..." } }
+  ]
+}
+```
+
+### 設定
+
+`PUT /groups/{id}/stations` は並びを**まるごと置き換え**ます。配列の順番がそのまま
+`position` の 0, 1, 2 … になります。
+
+```json
+{ "stations": ["central", "north", "0199c4f0-1a2b-7c3d-8e4f-cccccccccccc"] }
+```
+
+- 各要素は駅の slug でも UUID でも構いません。
+- 1 件ずつ挿入・移動する API は用意していません。一括置換なら並び順が常に連番で矛盾せず、
+  同じリクエストを 2 回送っても結果が変わらないためです。
+- 同じ駅を複数回指定すると `422`（`code: duplicate_station`）。
+- 一覧に無い駅は、そのグループから外れます（駅そのものは消えません）。

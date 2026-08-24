@@ -9,10 +9,12 @@
 
 package dev.nikomaru.advancerailway.commands
 
-import arrow.core.Either
-import dev.nikomaru.advancerailway.domain.id.StationId
+import dev.nikomaru.advancerailway.domain.id.Slug
 import org.bukkit.command.CommandSender
 import java.awt.Color
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 /**
  * ユーザー由来の文字列（駅名・グループ名など）を MiniMessage に埋め込む際のエスケープ。
@@ -27,32 +29,25 @@ fun Color.toHex(): String = "#%02X%02X%02X".format(red, green, blue)
  * クリックで `/ar station tp` を実行して駅へ飛ぶ `[TP]` リンク（MiniMessage）。
  * migrate / check の失敗行から現地をすぐ確認できるようにするためのもの。
  */
-fun stationTpLink(stationId: StationId): String =
-    "<click:run_command:'/ar station tp ${stationId.value}'>" +
-        "<hover:show_text:'${stationId.value} へテレポート'><gold>[TP]</gold></hover></click>"
+fun stationTpLink(slug: Slug): String =
+    "<click:run_command:'/ar station tp ${slug.value}'>" +
+        "<hover:show_text:'${slug.value} へテレポート'><gold>[TP]</gold></hover></click>"
+
+/** サーバーのタイムゾーンで `2026-08-24 12:34` の形にする。 */
+private val CHECKED_AT_FORMAT: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.systemDefault())
+
+/**
+ * 路線の最終確認時刻（`/ar railway check` が成功した時刻）を表示用の文字列にする。
+ * 一度も確認できていない路線は「未確認」。
+ */
+fun formatCheckedAt(instant: Instant?): String =
+    instant?.let { CHECKED_AT_FORMAT.format(it) } ?: "未確認"
 
 /** 秒単位の所要時間を「分（小数第1位）」の文字列にする。route 表示と同じ換算。 */
 fun formatMinutes(timeRequiredSeconds: Long): String {
     val minutes = kotlin.math.ceil(timeRequiredSeconds / 6.0) / 10
     return "$minutes 分"
-}
-
-/**
- * [Either] の [Either.Right] を取り出す。[Either.Left] の場合は [msg] で生成した
- * メッセージを [sender] にリッチメッセージとして送り、`null` を返す。
- *
- * 各コマンドで繰り返されていた
- * `when(val res = XUtils.getXData(id)){ is Either.Left -> { send; return }; is Either.Right -> res.value }`
- * という定型的なアンラップを 1 行に置き換えるためのヘルパ。呼び出し側は
- * `?: return` で早期リターンする想定。
- */
-inline fun <L, R> Either<L, R>.getOrSend(sender: CommandSender, msg: (L) -> String): R? = when (this) {
-    is Either.Left -> {
-        sender.sendRichMessage(msg(this.value))
-        null
-    }
-
-    is Either.Right -> this.value
 }
 
 /**

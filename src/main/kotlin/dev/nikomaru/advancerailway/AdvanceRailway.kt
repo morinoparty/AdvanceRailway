@@ -12,7 +12,6 @@ package dev.nikomaru.advancerailway
 import com.comphenix.protocol.ProtocolLibrary
 import com.github.shynixn.mccoroutine.bukkit.SuspendingJavaPlugin
 import com.github.shynixn.mccoroutine.bukkit.registerSuspendingEvents
-import dev.nikomaru.advancerailway.commands.FileCommand
 import dev.nikomaru.advancerailway.commands.GeneralCommand
 import dev.nikomaru.advancerailway.commands.group.GroupEditCommand
 import dev.nikomaru.advancerailway.commands.group.GroupInfoCommand
@@ -25,13 +24,21 @@ import dev.nikomaru.advancerailway.commands.railway.RailwayRouteCommand
 import dev.nikomaru.advancerailway.commands.station.StationEditCommand
 import dev.nikomaru.advancerailway.commands.station.StationInfoCommand
 import dev.nikomaru.advancerailway.commands.station.StationMainCommand
-import dev.nikomaru.advancerailway.storage.FileLoader
+import dev.nikomaru.advancerailway.platform.map.MapRenderer
+import dev.nikomaru.advancerailway.storage.database.DatabaseInitializer
+import dev.nikomaru.advancerailway.storage.database.repository.GroupRepository
+import dev.nikomaru.advancerailway.storage.database.repository.RailwayRepository
+import dev.nikomaru.advancerailway.storage.database.repository.StationRepository
+import dev.nikomaru.advancerailway.storage.loader.ConfigDataLoader
+import dev.nikomaru.advancerailway.storage.migration.JsonImport
 import dev.nikomaru.advancerailway.listener.RailClickEvent
 import dev.nikomaru.advancerailway.integration.mineauth.MineAuthIntegration
 import dev.nikomaru.advancerailway.commands.parser.GroupIdParser
 import dev.nikomaru.advancerailway.commands.parser.Point3DParser
 import dev.nikomaru.advancerailway.commands.parser.RailwayIdParser
 import dev.nikomaru.advancerailway.commands.parser.StationIdParser
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.bukkit.Bukkit
 import org.bukkit.command.CommandSender
 import org.incendo.cloud.annotations.AnnotationParser
@@ -57,11 +64,34 @@ open class AdvanceRailway: SuspendingJavaPlugin() {
         setCommand()
         setEventHandlers()
         setupKoin()
-        ensureCommandDataFolders()
         settingMap()
-        FileLoader.load()
+        ConfigDataLoader().load()
+        setupDatabase()
+        MapRenderer.refresh()
         // MineAuth が導入されていれば HTTP エンドポイントを登録する（未導入でも動作する）。
         MineAuthIntegration.register(this)
+    }
+
+    /**
+     * データベースへ接続し、スキーマを用意してリポジトリを Koin へ登録する。
+     * 旧 JSON データが残っていれば、この時点で 1 度だけ取り込む。
+     *
+     * JDBC はブロッキングなので、接続とスキーマ作成は [Dispatchers.IO] で行う。
+     */
+    private suspend fun setupDatabase() {
+        withContext(Dispatchers.IO) {
+            DatabaseInitializer.connect(dataFolder)
+            DatabaseInitializer.createTables()
+        }
+        val stationRepository = StationRepository()
+        val railwayRepository = RailwayRepository()
+        val groupRepository = GroupRepository()
+        loadKoinModules(module {
+            single { stationRepository }
+            single { railwayRepository }
+            single { groupRepository }
+        })
+        JsonImport(this, stationRepository, railwayRepository, groupRepository).runIfNeeded()
     }
 
     private fun settingMap() {
@@ -75,17 +105,6 @@ open class AdvanceRailway: SuspendingJavaPlugin() {
             single { squaremapApi }
             single { provider }
         })
-    }
-
-    /**
-     * Creates the data/{groups,railways,stations} folders used by the id parsers' suggestions.
-     * Must run after [setupKoin], since it resolves the Koin-injected plugin instance; the id
-     * parsers' own `suggestions()` deliberately stays read-only and never creates these folders.
-     */
-    private fun ensureCommandDataFolders() {
-        GroupIdParser.ensureDataFolder()
-        RailwayIdParser.ensureDataFolder()
-        StationIdParser.ensureDataFolder()
     }
 
     private fun setupKoin() {
@@ -147,7 +166,6 @@ open class AdvanceRailway: SuspendingJavaPlugin() {
             GroupMainCommand(),
             GroupInfoCommand(),
             GroupEditCommand(),
-            FileCommand(),
         )
     }
 

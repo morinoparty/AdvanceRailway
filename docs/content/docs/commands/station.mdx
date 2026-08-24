@@ -10,18 +10,28 @@ description: 駅の追加・編集・一覧
 ## 閲覧
 
 - `ar station list [page]` — 駅の一覧をページ表示します。
-- `ar station info <stationId>` — 駅の情報を表示します。
+- `ar station info <stationId>` — 駅の情報を表示します（所属路線ごとの駅ナンバリングもここに出ます）。
 
 ## 編集
 
-- `ar station add <id> <name> [point]` — 駅を追加します（座標省略時は現在地）。
-  - `id` : 駅の ID（英数字・`_`・`-`）
+- `ar station add <slug> <name> [point]` — 駅を追加します（座標省略時は現在地）。
+  - `slug` : 駅の短い識別子（英数字・`_`・`-`）
   - `name` : 駅の表示名
-- `ar station remove <id>` — 駅を削除します（路線から参照されている場合は不可）。
+- `ar station remove <stationId>` — 駅を削除します（路線から参照されている場合は不可）。
 - `ar station set name <stationId> <name>` — 駅名を変更します。
+- `ar station set slug <stationId> <newSlug>` — 駅の slug を変更します。
 - `ar station set location <stationId> [point]` — 駅の座標を変更します。
-- `ar station set numbering <stationId> <numbering>` — 駅ナンバリングを設定します。
 - `ar station set color <stationId> <r> <g> <b>` — 駅の色を変更します（各 0〜255）。
+
+:::note
+駅 ID を取る引数（`<stationId>`）は、**表示名・slug・UUID のいずれでも**指定できます。
+タブ補完には表示名が出ます。
+:::
+
+:::note
+駅ナンバリング（`M01` など）は駅ではなく**グループ（路線）**が持ちます。
+設定方法は [グループコマンド](/docs/commands/group#駅ナンバリング) を参照してください。
+:::
 
 ### 例
 

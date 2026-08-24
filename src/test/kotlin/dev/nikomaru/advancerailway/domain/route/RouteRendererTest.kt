@@ -9,6 +9,7 @@
 
 package dev.nikomaru.advancerailway.domain.route
 
+import dev.nikomaru.advancerailway.TestIds
 import dev.nikomaru.advancerailway.domain.id.GroupId
 import dev.nikomaru.advancerailway.domain.id.RailwayId
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -38,8 +39,8 @@ class RouteRendererTest {
         toLabel = to,
         mode = mode,
         lineLabel = group,
-        railwayId = railway?.let { RailwayId(it) },
-        group = group?.let { GroupId(it) },
+        railwayId = railway?.let { TestIds.railway(it) },
+        group = group?.let { TestIds.group(it) },
         timeSeconds = seconds,
         minutes = RouteRenderer.minutes(seconds),
     )
@@ -95,7 +96,7 @@ class RouteRendererTest {
         val segments = RouteRenderer.groupLegs(listOf(leg("A", "B", 114, "line", railway = "rw01")))
 
         assertEquals(1, segments.size)
-        assertEquals("rw01", segments.first().railwayId?.value)
+        assertEquals(TestIds.railway("rw01"), segments.first().railwayId)
         assertEquals(1, segments.first().legCount)
     }
 

@@ -51,7 +51,9 @@ dependencies {
     implementation(libs.bundles.commands.cloud)
 
     implementation(libs.kotlinx.serialization.json)
-    implementation(libs.kotlinx.serialization.csv)
+
+    // SQLite + Exposed。データはすべてこの DB に置く（JSON ファイル永続化は廃止済み）。
+    implementation(libs.bundles.database)
 
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.mccoroutine.bukkit.api)
@@ -83,6 +85,9 @@ dependencies {
     // ハンドラーが返す DTO / throw する HttpError をテストから参照するため
     // （main では compileOnly のためテストクラスパスには別途載せる）。
     testImplementation(libs.mineauth.api)
+    // 書き込み系エンドポイントは保存後にマーカーを描き直す。その差し替え用モックを組み立てるため
+    // squaremap の型をテストクラスパスにも載せる（main では compileOnly）。
+    testImplementation(libs.squaremap.api)
 }
 
 java {
@@ -139,6 +144,8 @@ tasks {
         // Cloud は relocate しない。Paper の Brigadier ネイティブ連携（cloud-paper）が反射で
         // 内部クラスを解決するため relocate は壊れやすく、プラグイン間はクラスローダで分離されるため不要。
         relocate("com.github.shynixn.mccoroutine", "dev.nikomaru.advancerailway.libs.mccoroutine")
+        // Exposed / sqlite-jdbc / uuid-creator は relocate しない。sqlite-jdbc はネイティブライブラリと
+        // META-INF/services 経由のドライバ登録を持ち、relocate すると解決できなくなる（Kerria も同様の方針）。
     }
     runServer {
         // 実ターゲットは Paper 26.x（Minecraft 1.21.11）。従来の 1.21.8 は squaremap(api 26.2) が
@@ -201,7 +208,6 @@ sourceSets.main {
                         "advancerailway.station.tp",
                         "advancerailway.railway.manage",
                         "advancerailway.group.manage",
-                        "advancerailway.file",
                         "advancerailway.reload",
                         "advancerailway.inspect",
                         "advancerailway.debug",
@@ -228,7 +234,6 @@ sourceSets.main {
                 register("advancerailway.station.tp") { default = Permission.Default.OP }
                 register("advancerailway.railway.manage") { default = Permission.Default.OP }
                 register("advancerailway.group.manage") { default = Permission.Default.OP }
-                register("advancerailway.file") { default = Permission.Default.OP }
                 register("advancerailway.reload") { default = Permission.Default.OP }
                 register("advancerailway.inspect") { default = Permission.Default.OP }
                 register("advancerailway.debug") { default = Permission.Default.OP }

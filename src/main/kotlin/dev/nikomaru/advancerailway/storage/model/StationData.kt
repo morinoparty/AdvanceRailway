@@ -10,51 +10,39 @@
 package dev.nikomaru.advancerailway.storage.model
 
 import dev.nikomaru.advancerailway.domain.geometry.Point3D
-import dev.nikomaru.advancerailway.storage.DataPaths
-import dev.nikomaru.advancerailway.storage.FileLoader
-import dev.nikomaru.advancerailway.storage.serialization.ColorSerializer
-import dev.nikomaru.advancerailway.storage.serialization.WorldSerializer
-import dev.nikomaru.advancerailway.storage.serialization.writeAtomically
+import dev.nikomaru.advancerailway.domain.id.Slug
 import dev.nikomaru.advancerailway.domain.id.StationId
-import dev.nikomaru.advancerailway.utils.Utils.json
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.encodeToString
-import org.bukkit.World
 import java.awt.Color
 import kotlin.random.Random
 
-@Serializable
+/**
+ * 駅。永続化は [dev.nikomaru.advancerailway.storage.database.repository.StationRepository] が担う。
+ *
+ * ワールドは実体ではなく名前で持つ。ワールドが読み込まれていない環境でも
+ * 駅データ自体は読み出せる必要があるため（一覧・API など）。
+ *
+ * ナンバリングは駅ではなくグループ（路線）が持つ。[GroupData.numberingPrefix] と
+ * グループ内の並び順から算出する。
+ */
 data class StationData(
-    val stationId: StationId,
+    val id: StationId,
+    val slug: Slug,
     val name: String,
-    val numbering: String?,
-    val world: @Serializable(with = WorldSerializer::class) World,
+    val worldName: String,
     val point: Point3D,
     val overrideSize: Double?,
-    val color: @Serializable(with = ColorSerializer::class) Color = defaultColor(stationId)
+    val color: Color,
 ) {
-
-    suspend fun save() {
-        val file = DataPaths.stations.resolve("${stationId.value}.json")
-        writeAtomically(file, json.encodeToString(this))
-        FileLoader.mapDataLoad()
-    }
-
     companion object {
         /**
-         * 駅 ID から決定論的に既定色を導出する。
+         * slug から決定論的に既定色を導出する。
          *
-         * 乱数シードを駅 ID に固定することで、`color` を持たない旧データを
-         * デコードするたびに色が変わってしまう問題を防ぐ。
+         * 主キーが UUID になった今も、色は **slug** をシードにする。UUID をシードにすると
+         * 移行のたびに既存駅の色が変わってしまうため。導出結果は作成時に実体化して保存する。
          */
-        fun defaultColor(stationId: StationId): Color {
-            val random = Random(stationId.hashCode().toLong())
+        fun defaultColor(slug: Slug): Color {
+            val random = Random(slug.value.hashCode().toLong())
             return Color(random.nextInt(256), random.nextInt(256), random.nextInt(256))
-        }
-
-        fun load(stationId: StationId): StationData {
-            val file = DataPaths.stations.resolve("${stationId.value}.json")
-            return json.decodeFromString(file.readText())
         }
     }
 }

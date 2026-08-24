@@ -166,12 +166,12 @@ object RouteFinder {
         if (fromStationId != null && fromStationId == to.id) return RouteError.SameStation.left()
 
         val fromNode = when (from) {
-            is Waypoint.Station -> Node(from.node.id.value, from.node.id, from.world, from.point)
+            is Waypoint.Station -> Node(from.node.id.toString(), from.node.id, from.world, from.point)
             is Waypoint.Origin -> Node(ORIGIN_KEY, null, from.world, from.point)
         }
-        val goalNode = Node(to.id.value, to.id, to.world, to.point)
+        val goalNode = Node(to.id.toString(), to.id, to.world, to.point)
 
-        val stationNodes = stations.map { Node(it.id.value, it.id, it.world, it.point) }
+        val stationNodes = stations.map { Node(it.id.toString(), it.id, it.world, it.point) }
         val nodeByKey = HashMap<String, Node>()
         stationNodes.forEach { nodeByKey[it.key] = it }
         nodeByKey[fromNode.key] = fromNode // 起点が現在地でも駅でも登録（駅なら上書きで同一）。
@@ -227,7 +227,7 @@ object RouteFinder {
                 edge,
                 RailEdge(edge.railwayId, edge.to, edge.from, edge.timeRequired, edge.group),
             )
-        }.groupBy { it.from.value }
+        }.groupBy { it.from.toString() }
 
     /**
      * [current] から出る辺（レール + 同一ワールドの徒歩）を列挙する。
@@ -247,7 +247,7 @@ object RouteFinder {
         // レール辺（起点が駅のときのみ）。
         current.stationId?.let { fromId ->
             for (edge in railAdjacency[current.key].orEmpty()) {
-                val neighbor = nodeByKey[edge.to.value] ?: continue
+                val neighbor = nodeByKey[edge.to.toString()] ?: continue
                 result += neighbor to Incoming(
                     fromKey = current.key,
                     mode = TravelMode.RAIL,

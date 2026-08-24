@@ -11,7 +11,8 @@ package dev.nikomaru.advancerailway.commands
 
 import com.github.shynixn.mccoroutine.bukkit.minecraftDispatcher
 import dev.nikomaru.advancerailway.AdvanceRailway
-import dev.nikomaru.advancerailway.storage.FileLoader
+import dev.nikomaru.advancerailway.platform.map.MapRenderer
+import dev.nikomaru.advancerailway.storage.loader.ConfigDataLoader
 import dev.nikomaru.advancerailway.listener.RailClickEvent
 import dev.nikomaru.advancerailway.utils.Utils.toPoint3D
 import kotlinx.coroutines.withContext
@@ -76,14 +77,16 @@ class GeneralCommand : KoinComponent {
         sender.sendRichMessage("<white>/ar group list [page] <gray>- グループ一覧")
         sender.sendRichMessage("<white>/ar group info <グループ> <gray>- グループの詳細")
         sender.sendRichMessage("<white>/ar group add|remove|set … <gray>- グループの編集")
+        sender.sendRichMessage("<white>/ar group station set|list <グループ> <gray>- 駅の並び（ナンバリング順）")
     }
 
     @Command("reload")
     @CommandDescription("マップと設定データを再読み込みします")
     @Permission("advancerailway.reload")
     suspend fun reload(sender: CommandSender) {
-        FileLoader.load()
-        sender.sendRichMessage("<green>マップと設定データを再読み込みしました。")
+        ConfigDataLoader().load()
+        MapRenderer.refresh()
+        sender.sendRichMessage("<green>設定を再読み込みし、マップを描き直しました。")
     }
 
     @Command("inspect")
