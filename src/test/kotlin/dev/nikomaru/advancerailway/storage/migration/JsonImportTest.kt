@@ -177,6 +177,18 @@ class JsonImportTest {
     }
 
     @Test
+    @DisplayName("does nothing when the legacy folders exist but hold no JSON (fresh install)")
+    fun skipsWhenLegacyFoldersAreEmpty() = runBlocking {
+        // 新規インストールでフォルダだけできている状態。「旧データを発見」と誤報して
+        // 退避（リネーム）してしまわないことを確かめる。
+        listOf("stations", "railways", "groups").forEach { dataFolder.resolve("data").resolve(it).mkdirs() }
+
+        assertNull(import().runIfNeeded())
+        assertTrue(dataFolder.resolve("data").exists())
+        assertFalse(dataFolder.listFiles()!!.any { it.name.startsWith("data-backup-json-") })
+    }
+
+    @Test
     @DisplayName("skips a malformed file but still imports the rest")
     fun skipsMalformedFile() = runBlocking {
         writeStation("st01", "Central")
