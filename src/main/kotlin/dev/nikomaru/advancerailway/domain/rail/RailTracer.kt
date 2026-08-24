@@ -33,16 +33,21 @@ interface RailWorld {
 object RailTracer {
 
     /**
-     * 探索中の1経路。[visited] は経路ごとに独立させる。
-     * 全経路で共有すると、複線・待避線の合流地点で後着の経路が LOOP として
-     * 途中終端になり、その先の本来の終端（と flags の組）が列挙されない。
+     * 探索中の 1 経路。
+     *
+     * [visited] には**通過したレールの座標**を入れる。同じレールに戻ってきた経路はそこで
+     * 打ち切り、1 本の経路が同じ場所を 2 度通らないようにする。向き（有向エッジ）ではなく
+     * 座標で見るのは、分岐ブロックへ別の脚から入り直す経路も「同じ場所を 2 度通る」ため。
+     *
+     * [visited] は経路ごとに独立させる。全経路で共有すると、複線・待避線の合流地点で
+     * 後着の経路が途中終端になり、その先の本来の終端（と flags の組）が列挙されない。
      */
     private data class Frame(
         val prev: Point3D,
         val cur: Point3D,
         val firstLeg: Point3D,
         val flags: List<BranchDirection>,
-        val visited: HashSet<Pair<Point3D, Point3D>>,
+        val visited: HashSet<Point3D>,
         val steps: Int,
     )
 
@@ -51,7 +56,7 @@ object RailTracer {
      * flags に出発方角は含まれない（呼び出し側が方向を固定しているため）。
      *
      * - [limit] は探索全体の総ステップ予算（メインスレッド占有時間の上限）。
-     * - 経路が自分自身の通過エッジに戻ると [EndpointKind.LOOP] で終端化される。
+     * - 経路が自分自身の通過済みレール（起点を含む）に戻ると [EndpointKind.LOOP] で終端化される。
      * - レール直下が [stopBlocks] のブロックなら [EndpointKind.STOP_BLOCK] で終端化する。
      */
     fun trace(
@@ -63,7 +68,7 @@ object RailTracer {
         maxEndpoints: Int,
     ): Either<RailTraceError, List<BranchEndpoint>> = explore(
         first = first,
-        seeds = listOf(Frame(first, directionPoint, directionPoint, emptyList(), hashSetOf(), 0)),
+        seeds = listOf(Frame(first, directionPoint, directionPoint, emptyList(), hashSetOf(first), 0)),
         world = world,
         stopBlocks = stopBlocks,
         limit = limit,
@@ -84,7 +89,7 @@ object RailTracer {
     ): Either<RailTraceError, List<BranchEndpoint>> {
         val seeds = adjacentRails(first, world).mapNotNull { leg ->
             val flag = BranchDirection.fromPoints(first, leg) ?: return@mapNotNull null
-            Frame(first, leg, leg, listOf(flag), hashSetOf(), 0)
+            Frame(first, leg, leg, listOf(flag), hashSetOf(first), 0)
         }
         return explore(first, seeds, world, stopBlocks, limit, maxEndpoints)
     }
@@ -114,7 +119,7 @@ object RailTracer {
                 if (++steps > limit) {
                     return RailTraceError.ATTACHED_TO_LIMIT.left()
                 }
-                if (!frame.visited.add(frame.prev to frame.cur)) {
+                if (!frame.visited.add(frame.cur)) {
                     results.add(endpoint(EndpointKind.LOOP, frame))
                     break
                 }
@@ -170,7 +175,7 @@ object RailTracer {
         val stack = ArrayDeque(
             adjacentRails(first, world).mapNotNull { leg ->
                 val flag = BranchDirection.fromPoints(first, leg) ?: return@mapNotNull null
-                Frame(first, leg, leg, listOf(flag), hashSetOf(), 1)
+                Frame(first, leg, leg, listOf(flag), hashSetOf(first), 1)
             }
         )
         var steps = 0L
@@ -180,7 +185,7 @@ object RailTracer {
                 if (++steps > limit) {
                     return RailTraceError.ATTACHED_TO_LIMIT.left()
                 }
-                if (!frame.visited.add(frame.prev to frame.cur)) {
+                if (!frame.visited.add(frame.cur)) {
                     break
                 }
                 if (frame.cur == end) {

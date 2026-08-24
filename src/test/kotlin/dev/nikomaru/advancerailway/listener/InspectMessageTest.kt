@@ -10,6 +10,10 @@
 package dev.nikomaru.advancerailway.listener
 
 import dev.nikomaru.advancerailway.domain.geometry.Point3D
+import dev.nikomaru.advancerailway.domain.rail.BranchDirection
+import dev.nikomaru.advancerailway.domain.rail.BranchEndpoint
+import dev.nikomaru.advancerailway.domain.rail.EndpointKind
+import dev.nikomaru.advancerailway.domain.rail.InspectData
 import dev.nikomaru.advancerailway.domain.id.Slug
 import dev.nikomaru.advancerailway.domain.id.StationId
 import dev.nikomaru.advancerailway.storage.model.StationData
@@ -118,6 +122,38 @@ class InspectMessageTest {
         assertTrue(message.contains("付近に駅が登録されていません"), message)
         assertFalse(message.contains("[作成]"), message)
         assertTrue(message.contains(start.toPlainString()), message)
+    }
+
+    private fun endpoint(kind: EndpointKind) = BranchEndpoint(
+        flags = listOf(BranchDirection.EAST),
+        kind = kind,
+        forward = InspectData(start, start, end),
+        backward = InspectData(end, end, start),
+    )
+
+    @Test
+    @DisplayName("endpoints that loop back onto the same track are kept out of the list")
+    fun loopEndpointsAreExcluded() {
+        val all = listOf(
+            endpoint(EndpointKind.RAIL_END),
+            endpoint(EndpointKind.LOOP),
+            endpoint(EndpointKind.STOP_BLOCK),
+            endpoint(EndpointKind.LOOP),
+        )
+
+        val (shown, excluded) = InspectMessage.partitionForDisplay(all)
+
+        assertEquals(2, shown.size)
+        assertEquals(2, excluded)
+        // 登録できる終端（線路の端・停止ブロック）だけが残る。
+        assertEquals(setOf(EndpointKind.RAIL_END, EndpointKind.STOP_BLOCK), shown.map { it.kind }.toSet())
+    }
+
+    @Test
+    @DisplayName("the excluded count is reported so an empty result is not left unexplained")
+    fun excludedCountIsReported() {
+        assertNull(InspectMessage.excludedNote(0))
+        assertTrue(InspectMessage.excludedNote(3)!!.contains("3 件"))
     }
 
     @Test

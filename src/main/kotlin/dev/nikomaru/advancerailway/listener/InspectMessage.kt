@@ -24,6 +24,22 @@ import dev.nikomaru.advancerailway.storage.model.StationData
  */
 internal object InspectMessage {
 
+    /**
+     * 一覧に出す終端と、環状・合流で打ち切られて除外した件数に分ける。
+     *
+     * 同じ線路へ戻ってくる経路は路線として登録できない（`ar railway add` の始点と終点が
+     * 同じ線路上に乗ってしまう）ので一覧からは外す。ただし黙って消すと「0 件」になった
+     * 理由が分からないため、件数だけは呼び出し側が伝えられるように返す。
+     */
+    fun partitionForDisplay(endpoints: List<BranchEndpoint>): Pair<List<BranchEndpoint>, Int> {
+        val (loops, shown) = endpoints.partition { it.kind == EndpointKind.LOOP }
+        return shown to loops.size
+    }
+
+    /** 除外した件数の注記。除外が無ければ null。 */
+    fun excludedNote(excluded: Int): String? =
+        if (excluded <= 0) null else "<gray>（同じ線路に戻ってくる経路 $excluded 件は除外しました）"
+
     /** 行頭の `[flags: EE]` と終端の種別。 */
     fun label(endpoint: BranchEndpoint): String = buildString {
         append("<yellow>[flags: ${endpoint.flagString()}]</yellow> ")

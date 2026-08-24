@@ -236,17 +236,30 @@ class RailTracerTest {
         val result = trace(passingLoopWorld(), p(0, 0, 0), p(1, 0, 0))
         val endpoints = (result as Either.Right).value
         val byFlagString = endpoints.associateBy { it.flagString() }
-        // 本線経由・待避線経由の両方で合流先の終端に到達できること
+        // 本線経由・待避線経由の両方で合流先の終端に到達できること。
+        // visited は経路ごとに独立しているので、合流地点で後着側が潰れることはない。
         assertEquals(p(10, 0, 0), byFlagString["EE"]?.forward?.end)
         assertEquals(EndpointKind.RAIL_END, byFlagString["EE"]?.kind)
         assertEquals(p(10, 0, 0), byFlagString["SE"]?.forward?.end)
         assertEquals(EndpointKind.RAIL_END, byFlagString["SE"]?.kind)
-        // 折り返してクリック地点側へ戻る経路と、自経路内で一周する LOOP も列挙される
-        assertEquals(p(0, 0, 0), byFlagString["ESW"]?.forward?.end)
-        assertEquals(p(0, 0, 0), byFlagString["SWW"]?.forward?.end)
-        assertEquals(EndpointKind.LOOP, byFlagString["ESE"]?.kind)
-        assertEquals(EndpointKind.LOOP, byFlagString["SWS"]?.kind)
-        assertEquals(6, endpoints.size)
+        // 待避線を回ってから分岐点へ戻る経路は、同じレールを 2 度通るため
+        // そこで LOOP として打ち切られる（クリック地点まで戻る終端は列挙されない）。
+        assertEquals(EndpointKind.LOOP, byFlagString["ES"]?.kind)
+        assertEquals(EndpointKind.LOOP, byFlagString["SW"]?.kind)
+        assertEquals(4, endpoints.size)
+    }
+
+    @Test
+    fun noEndpointRevisitsTheClickedRail() {
+        // 一度通ったレールは 2 度通らない規則により、折り返してクリック地点へ戻る経路は
+        // 終端として現れない（戻ってくる手前で LOOP 打ち切りになる）。
+        val result = trace(passingLoopWorld(), p(0, 0, 0), p(1, 0, 0))
+        val endpoints = (result as Either.Right).value
+
+        assertTrue(
+            endpoints.none { it.forward.end == p(0, 0, 0) },
+            "クリック地点へ戻る終端が残っています: ${endpoints.map { it.flagString() to it.forward.end }}",
+        )
     }
 
     @Test
