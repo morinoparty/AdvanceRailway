@@ -11,14 +11,17 @@ package dev.nikomaru.advancerailway.domain.id
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 
 /**
- * [IdValidation] と、それを利用する各 ID 値クラスのバリデーションを検証する（#116/#130）。
- * パストラバーサル（`..`, `/`, `\`）やその URL エンコード表現を確実に弾くことを確認する。
+ * [IdValidation] と [Slug] のバリデーションを検証する（#116/#130）。
+ *
+ * かつてこの検証は「ID がファイル名になる」ことへの防御だったが、データベース化した現在も
+ * slug はコマンド引数・HTTP のパス・MiniMessage に載るため、同じ allowlist を維持する。
  */
 class IdValidationTest {
 
@@ -61,26 +64,22 @@ class IdValidationTest {
     }
 
     @Test
-    @DisplayName("StationId constructor accepts a normal id")
-    fun stationIdAcceptsNormalId() {
-        assertEquals("st01", StationId("st01").value)
+    @DisplayName("Slug accepts a normal id")
+    fun slugAcceptsNormalId() {
+        assertEquals("st01", Slug("st01").value)
     }
 
     @Test
-    @DisplayName("StationId constructor rejects a URL-encoded traversal id")
-    fun stationIdRejectsTraversalId() {
-        assertThrows<IllegalArgumentException> { StationId("..%2F..%2Fx") }
+    @DisplayName("Slug rejects a URL-encoded traversal id")
+    fun slugRejectsTraversalId() {
+        assertThrows<IllegalArgumentException> { Slug("..%2F..%2Fx") }
     }
 
     @Test
-    @DisplayName("RailwayId constructor rejects a relative traversal id")
-    fun railwayIdRejectsTraversalId() {
-        assertThrows<IllegalArgumentException> { RailwayId("../../x") }
-    }
-
-    @Test
-    @DisplayName("GroupId constructor rejects a bare traversal id")
-    fun groupIdRejectsTraversalId() {
-        assertThrows<IllegalArgumentException> { GroupId("..") }
+    @DisplayName("Slug.parse returns null instead of throwing, for use at input boundaries")
+    fun slugParseReturnsNull() {
+        assertNull(Slug.parse("../../x"))
+        assertNull(Slug.parse(".."))
+        assertEquals("st01", Slug.parse("st01")?.value)
     }
 }

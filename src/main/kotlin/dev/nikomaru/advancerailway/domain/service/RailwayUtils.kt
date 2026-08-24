@@ -20,13 +20,8 @@ import dev.nikomaru.advancerailway.domain.rail.BranchEndpoint
 import dev.nikomaru.advancerailway.domain.rail.RailTracer
 import dev.nikomaru.advancerailway.domain.rail.RailWorld
 import dev.nikomaru.advancerailway.domain.rail.RouteCandidate
-import dev.nikomaru.advancerailway.domain.error.DataSearchError
 import dev.nikomaru.advancerailway.domain.error.RailTraceError
-import dev.nikomaru.advancerailway.storage.DataPaths
 import dev.nikomaru.advancerailway.storage.model.ConfigData
-import dev.nikomaru.advancerailway.storage.model.RailwayData
-import dev.nikomaru.advancerailway.domain.id.RailwayId
-import dev.nikomaru.advancerailway.utils.Utils.json
 import dev.nikomaru.advancerailway.platform.coroutines.minecraft
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -153,25 +148,5 @@ object RailwayUtils: KoinComponent {
         }
         return@withContext RailTraceError.ATTACHED_TO_LIMIT.left()
     }
-
-
-    suspend fun getRailwayData(railwayId: RailwayId): Either<DataSearchError, RailwayData> =
-        withContext(Dispatchers.IO) {
-            val folder = DataPaths.railways
-            if (!folder.exists()) {
-                folder.mkdirs()
-                return@withContext Either.Left(DataSearchError.NOT_FOUND)
-            }
-            val file = folder.resolve("${railwayId.value}.json")
-            if (!file.exists()) {
-                return@withContext Either.Left(DataSearchError.NOT_FOUND)
-            }
-            return@withContext try {
-                Either.Right(json.decodeFromString<RailwayData>(file.readText()))
-            } catch (e: Exception) {
-                plugin.logger.warning("Failed to decode railway data '${file.name}': ${e.message}")
-                Either.Left(DataSearchError.DESERIALIZATION_FAILED)
-            }
-        }
 
 }

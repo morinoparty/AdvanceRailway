@@ -102,8 +102,8 @@ class RailClickEvent: Listener {
         ).forEach { (data, flags) ->
             val start = data.start ?: return@forEach
             val end = data.end ?: return@forEach
-            val startStation = StationUtils.nearStation(start.toLocation(player.world)).getOrNull()
-            val endStation = StationUtils.nearStation(end.toLocation(player.world)).getOrNull()
+            val startStation = StationUtils.nearStation(start.toLocation(player.world))
+            val endStation = StationUtils.nearStation(end.toLocation(player.world))
             if (startStation != null && startStation == endStation) {
                 // 自分の駅に戻ってくる経路は表示しない
                 return@forEach
@@ -114,14 +114,16 @@ class RailClickEvent: Listener {
                 )
                 return@forEach
             }
-            val railwayId = startStation.value + "_" + endStation.value
+            val suggestSlug = startStation.slug.value + "_" + endStation.slug.value
             val suggestMessage = if (flags != null) {
-                " <click:suggest_command:'/ar railway add $railwayId ${start.toPlainString()} ${end.toPlainString()} $flags'><green>[作成]</green></click>"
+                " <click:suggest_command:'/ar railway add $suggestSlug ${start.toPlainString()} " +
+                    "${end.toPlainString()} $flags'><green>[作成]</green></click>"
             } else {
                 ""
             }
             player.sendRichMessage(
-                "$label<white>${startStation.toData()?.name} : ${start.toPlainString()} -> ${endStation.toData()?.name} : ${end.toPlainString()}</white>$suggestMessage"
+                "$label<white>${startStation.name} : ${start.toPlainString()} -> " +
+                    "${endStation.name} : ${end.toPlainString()}</white>$suggestMessage"
             )
         }
     }

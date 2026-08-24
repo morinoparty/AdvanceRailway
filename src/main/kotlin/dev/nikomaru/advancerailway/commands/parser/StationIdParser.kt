@@ -13,7 +13,7 @@ import dev.nikomaru.advancerailway.domain.id.StationId
 import org.bukkit.command.CommandSender
 import org.incendo.cloud.parser.ParserDescriptor
 
-object StationIdParser : IdParser<CommandSender, StationId>("stations", ::StationId, nameField = "name") {
+object StationIdParser : IdParser<CommandSender, StationId>(IdEntries::stations, ::StationId) {
     fun stationIdParser(): ParserDescriptor<CommandSender, StationId> =
         ParserDescriptor.of(this, StationId::class.java)
 }

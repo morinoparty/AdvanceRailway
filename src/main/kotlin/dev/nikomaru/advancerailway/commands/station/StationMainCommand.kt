@@ -9,22 +9,18 @@
 
 package dev.nikomaru.advancerailway.commands.station
 
+import dev.nikomaru.advancerailway.domain.geometry.Point3D
+import dev.nikomaru.advancerailway.domain.id.Slug
+import dev.nikomaru.advancerailway.domain.id.StationId
+import dev.nikomaru.advancerailway.platform.map.MapRenderer
+import dev.nikomaru.advancerailway.storage.database.repository.RailwayRepository
+import dev.nikomaru.advancerailway.storage.database.repository.StationRepository
+import dev.nikomaru.advancerailway.storage.model.StationData
+import dev.nikomaru.advancerailway.utils.Utils.toLocation
+import dev.nikomaru.advancerailway.utils.Utils.toPoint3D
 import com.github.shynixn.mccoroutine.bukkit.minecraftDispatcher
 import dev.nikomaru.advancerailway.AdvanceRailway
-import dev.nikomaru.advancerailway.commands.esc
-import dev.nikomaru.advancerailway.commands.getOrSend
-import dev.nikomaru.advancerailway.domain.geometry.Point3D
-import dev.nikomaru.advancerailway.storage.DataPaths
-import dev.nikomaru.advancerailway.storage.FileLoader
-import dev.nikomaru.advancerailway.storage.model.RailwayData
-import dev.nikomaru.advancerailway.storage.model.StationData
-import dev.nikomaru.advancerailway.domain.id.IdValidation
-import dev.nikomaru.advancerailway.domain.id.StationId
-import dev.nikomaru.advancerailway.domain.service.StationUtils
-import dev.nikomaru.advancerailway.utils.Utils.json
-import dev.nikomaru.advancerailway.utils.Utils.toPoint3D
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.decodeFromString
 import org.bukkit.Bukkit
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
@@ -39,81 +35,98 @@ import org.koin.core.component.inject
 class StationMainCommand : KoinComponent {
 
     private val plugin: AdvanceRailway by inject()
+    private val stationRepository: StationRepository by inject()
+    private val railwayRepository: RailwayRepository by inject()
 
-    @Command("add <id> <name> [point]")
+    /**
+     * 駅を新規登録する。引数の `slug` は人間が使う短い識別子で、主キーは UUIDv7 が自動採番される。
+     */
+    @Command("add <slug> <name> [point]")
     @CommandDescription("駅を新規登録します（座標省略時は実行者の現在地）")
     @Permission("advancerailway.station.manage")
     suspend fun add(
         sender: CommandSender,
-        @Argument("id") id: String,
+        @Argument("slug") rawSlug: String,
         @Argument("name") name: String,
         @Argument("point") point: Point3D?,
-    ) { // Add station
+    ) {
         if (sender !is Player && point == null) {
             sender.sendRichMessage("<red>座標を指定してください（プレイヤー以外は必須です）。")
             return
         }
-        if (!IdValidation.isValid(id)) {
-            sender.sendRichMessage("<red>駅 ID が不正です: <white>$id</white>")
+        val slug = Slug.parse(rawSlug) ?: run {
+            sender.sendRichMessage("<red>駅 slug が不正です: <white>$rawSlug</white>")
+            return
+        }
+        if (stationRepository.slugExists(slug)) {
+            sender.sendRichMessage("<red>その slug は既に使われています: <white>$rawSlug</white>")
             return
         }
         val resolvedPoint = point ?: (sender as Player).location.toPoint3D()
-        val world = if (sender is Player) {
-            sender.world
+        val worldName = if (sender is Player) {
+            sender.world.name
         } else {
-            Bukkit.getWorld("world") ?: run {
+            Bukkit.getWorld("world")?.name ?: run {
                 sender.sendRichMessage("<red>ワールド \"world\" が見つかりません。")
                 return
             }
         }
-        val stationId = StationId(id)
-        val data = StationData(stationId, name, null, world, resolvedPoint, null)
-        data.save()
+        stationRepository.insert(
+            StationData(
+                id = StationId.new(),
+                slug = slug,
+                name = name,
+                worldName = worldName,
+                point = resolvedPoint,
+                overrideSize = null,
+                color = StationData.defaultColor(slug),
+            )
+        )
+        MapRenderer.refresh()
         sender.sendRichMessage("<green>駅を追加しました。")
     }
 
-    @Command("remove <id>")
+    @Command("remove <stationId>")
     @CommandDescription("駅を削除します（依存する路線がある場合は削除できません）")
     @Permission("advancerailway.station.manage")
-    suspend fun remove(sender: CommandSender, @Argument("id") id: StationId) { // Remove station
-        val file = DataPaths.stations.resolve("${id.value}.json")
-        if (!file.exists()) {
+    suspend fun remove(sender: CommandSender, @Argument("stationId") stationId: StationId) {
+        val data = stationRepository.findById(stationId) ?: run {
             sender.sendRichMessage("<red>駅が見つかりません。")
             return
         }
-        val dependents = (DataPaths.railways.listFiles() ?: emptyArray()).mapNotNull { railwayFile ->
-            runCatching { json.decodeFromString<RailwayData>(railwayFile.readText()) }.getOrNull()
-        }.filter { it.fromStation == id || it.toStation == id }.map { it.id.value }
+        val dependents = railwayRepository.findByStation(stationId)
         if (dependents.isNotEmpty()) {
             sender.sendRichMessage(
-                "<red>駅 <yellow>${id.value}</yellow> は削除できません。" +
-                    "次の路線が参照しています: <white>${dependents.joinToString(", ")}</white>"
+                "<red>駅 <yellow>${data.slug.value}</yellow> は削除できません。" +
+                    "次の路線が参照しています: <white>${dependents.joinToString(", ") { it.slug.value }}</white>"
             )
             return
         }
-        file.delete()
-        FileLoader.mapDataLoad()
+        stationRepository.delete(stationId)
+        MapRenderer.refresh()
         sender.sendRichMessage("<green>駅を削除しました。")
     }
 
-    @Command("tp <id>")
+    @Command("tp <stationId>")
     @CommandDescription("駅の座標へテレポートします（プレイヤー専用）")
     @Permission("advancerailway.station.tp")
-    suspend fun tp(sender: CommandSender, @Argument("id") id: StationId) {
+    suspend fun tp(sender: CommandSender, @Argument("stationId") stationId: StationId) {
         if (sender !is Player) {
             sender.sendRichMessage("<red>このコマンドはプレイヤー専用です。")
             return
         }
-        val data = StationUtils.getStationData(id).getOrSend(sender) { "<red>駅が見つかりません" } ?: return
-        // teleportAsync はメインスレッド専用 API のため、メインスレッドへ切り替えて呼び出す。
-        // 未ロードチャンクは teleportAsync が非同期にロードするので、サーバーを止めない。
-        withContext(plugin.minecraftDispatcher) {
-            val location = data.point.toLocation(data.world)
-            location.yaw = sender.location.yaw
-            location.pitch = sender.location.pitch
-            sender.teleportAsync(location)
+        val data = stationRepository.findById(stationId) ?: run {
+            sender.sendRichMessage("<red>駅が見つかりません。")
+            return
         }
-        sender.sendRichMessage("<green>駅 <white>${esc(data.name)}</white> へテレポートしました。")
+        val world = Bukkit.getWorld(data.worldName) ?: run {
+            sender.sendRichMessage("<red>ワールドが見つかりません: <white>${data.worldName}</white>")
+            return
+        }
+        // teleport はメインスレッド専用 API。
+        withContext(plugin.minecraftDispatcher) {
+            sender.teleport(data.point.toLocation(world))
+        }
+        sender.sendRichMessage("<green>${data.name} へテレポートしました。")
     }
-
 }

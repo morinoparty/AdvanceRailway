@@ -10,13 +10,11 @@
 package dev.nikomaru.advancerailway.utils
 
 import dev.nikomaru.advancerailway.domain.geometry.Point3D
-import kotlinx.serialization.ExperimentalSerializationApi
-import kotlinx.serialization.csv.Csv
-import kotlinx.serialization.csv.config.QuoteMode
 import kotlinx.serialization.json.Json
 import org.bukkit.Location
 
 object Utils {
+    /** 設定ファイル（config.json）の読み書きに使う。データ本体はデータベースに入る。 */
     val json = Json {
         ignoreUnknownKeys = true
         isLenient = true
@@ -24,16 +22,7 @@ object Utils {
         prettyPrint = true
     }
 
-    @OptIn(ExperimentalSerializationApi::class)
-    val csv = Csv {
-        hasHeaderRecord = true
-        ignoreUnknownColumns = true
-        quoteMode = QuoteMode.ALL
-    }
-
     fun Location.toPoint3D() = Point3D(x, y, z)
-
-    private fun Triple<Int, Int, Int>.toPoint3D() = Point3D(first.toDouble(), second.toDouble(), third.toDouble())
 
     fun Point3D.toLocation(world: org.bukkit.World) = Location(world, x, y, z)
 }

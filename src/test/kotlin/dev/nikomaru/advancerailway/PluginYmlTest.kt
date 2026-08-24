@@ -74,7 +74,6 @@ class PluginYmlTest {
             "advancerailway.station.tp",
             "advancerailway.railway.manage",
             "advancerailway.group.manage",
-            "advancerailway.file",
             "advancerailway.reload",
             "advancerailway.inspect",
             "advancerailway.debug",

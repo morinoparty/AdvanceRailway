@@ -10,6 +10,7 @@
 package dev.nikomaru.advancerailway.domain.route
 
 import arrow.core.Either
+import dev.nikomaru.advancerailway.TestIds
 import dev.nikomaru.advancerailway.domain.geometry.Point3D
 import dev.nikomaru.advancerailway.domain.id.GroupId
 import dev.nikomaru.advancerailway.domain.id.RailwayId
@@ -68,34 +69,38 @@ class RealDataRouteTest {
         val stationObjects = jsonFiles("stations").map { json.parseToJsonElement(it.readText()).jsonObject }
         stations = stationObjects.map { obj ->
             StationNode(
-                id = StationId(obj["stationId"]!!.jsonPrimitive.content),
+                id = TestIds.station(obj["stationId"]!!.jsonPrimitive.content),
                 world = obj["world"]!!.jsonPrimitive.content,
                 point = parsePoint(obj["point"]!!.jsonPrimitive.content),
             )
         }
         stationNames = stationObjects.associate {
-            StationId(it["stationId"]!!.jsonPrimitive.content) to (it["name"]?.jsonPrimitive?.contentOrNull ?: "")
+            TestIds.station(it["stationId"]!!.jsonPrimitive.content) to (it["name"]?.jsonPrimitive?.contentOrNull ?: "")
         }
 
         railways = jsonFiles("railways").map { json.parseToJsonElement(it.readText()).jsonObject }.map { obj ->
             RailEdge(
-                railwayId = RailwayId(obj["id"]!!.jsonPrimitive.content),
-                from = StationId(obj["fromStation"]!!.jsonPrimitive.content),
-                to = StationId(obj["toStation"]!!.jsonPrimitive.content),
+                railwayId = TestIds.railway(obj["id"]!!.jsonPrimitive.content),
+                from = TestIds.station(obj["fromStation"]!!.jsonPrimitive.content),
+                to = TestIds.station(obj["toStation"]!!.jsonPrimitive.content),
                 timeRequired = obj["timeRequired"]!!.jsonPrimitive.long,
-                group = obj["group"]?.jsonPrimitive?.contentOrNull?.let { GroupId(it) },
+                group = obj["group"]?.jsonPrimitive?.contentOrNull?.let { TestIds.group(it) },
             )
         }
 
         groupNames = jsonFiles("groups").map { json.parseToJsonElement(it.readText()).jsonObject }.associate {
-            GroupId(it["groupId"]!!.jsonPrimitive.content) to (it["name"]?.jsonPrimitive?.contentOrNull ?: "")
+            TestIds.group(it["groupId"]!!.jsonPrimitive.content) to (it["name"]?.jsonPrimitive?.contentOrNull ?: "")
         }
     }
 
-    private fun node(id: String): StationNode = stations.first { it.id.value == id }
+    private fun node(key: String): StationNode = stations.first { it.id == TestIds.station(key) }
 
-    private fun route(from: String, to: String): Route {
-        val result = RouteFinder.findRoute(stations, railways, Waypoint.Station(node(from)), node(to))
+    private fun route(from: String, to: String): Route = route(TestIds.station(from), TestIds.station(to))
+
+    private fun route(from: StationId, to: StationId): Route {
+        val fromNode = stations.first { it.id == from }
+        val toNode = stations.first { it.id == to }
+        val result = RouteFinder.findRoute(stations, railways, Waypoint.Station(fromNode), toNode)
         assertInstanceOf(Either.Right::class.java, result, "expected a route from $from to $to but got $result")
         return (result as Either.Right).value
     }
@@ -107,8 +112,8 @@ class RealDataRouteTest {
         assertEquals(271, railways.size)
         assertEquals(32, groupNames.size)
         // spot-check the two stations from the reported command output.
-        assertEquals("ふれんちとーす島", stationNames[StationId("fti")])
-        assertEquals("赤松", stationNames[StationId("akmt")])
+        assertEquals("ふれんちとーす島", stationNames[TestIds.station("fti")])
+        assertEquals("赤松", stationNames[TestIds.station("akmt")])
     }
 
     @Test
@@ -117,7 +122,7 @@ class RealDataRouteTest {
         val route = route("fti", "akmt")
         val rendered = RouteRenderer.render(
             route,
-            originLabel = stationNames.getValue(StationId("fti")),
+            originLabel = stationNames.getValue(TestIds.station("fti")),
             stationName = { stationNames[it] },
             groupName = { groupNames[it] },
         )
@@ -159,7 +164,7 @@ class RealDataRouteTest {
     fun stationChainIsContinuous() {
         val rendered = RouteRenderer.render(
             route("fti", "akmt"),
-            originLabel = stationNames.getValue(StationId("fti")),
+            originLabel = stationNames.getValue(TestIds.station("fti")),
             stationName = { stationNames[it] },
             groupName = { groupNames[it] },
         )
@@ -186,7 +191,7 @@ class RealDataRouteTest {
         route.legs.filter { it.mode == TravelMode.WALK }.forEach { leg ->
             assertTrue(
                 leg.timeSeconds <= RouteFinder.RAIL_ONLY_MAX_WALK_SECONDS.toLong(),
-                "walk leg to ${leg.to.value} takes ${leg.timeSeconds}s, over the rail-only limit",
+                "walk leg to ${leg.to} takes ${leg.timeSeconds}s, over the rail-only limit",
             )
         }
     }
@@ -198,7 +203,7 @@ class RealDataRouteTest {
         val edge = railways.first { e ->
             e.timeRequired > 0 && stations.any { it.id == e.from } && stations.any { it.id == e.to }
         }
-        val route = route(edge.from.value, edge.to.value)
+        val route = route(edge.from, edge.to)
         assertTrue(route.legs.isNotEmpty())
         assertTrue(route.totalSeconds > 0)
     }

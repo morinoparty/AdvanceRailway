@@ -10,6 +10,7 @@
 package dev.nikomaru.advancerailway.domain.route
 
 import arrow.core.Either
+import dev.nikomaru.advancerailway.TestIds
 import dev.nikomaru.advancerailway.domain.geometry.Point3D
 import dev.nikomaru.advancerailway.domain.id.GroupId
 import dev.nikomaru.advancerailway.domain.id.RailwayId
@@ -28,10 +29,10 @@ import org.junit.jupiter.api.Test
 class RouteFinderTest {
 
     private fun station(id: String, x: Double, z: Double, world: String = "world") =
-        StationNode(StationId(id), world, Point3D(x, 64.0, z))
+        StationNode(TestIds.station(id), world, Point3D(x, 64.0, z))
 
     private fun rail(id: String, from: StationNode, to: StationNode, time: Long, group: String? = null) =
-        RailEdge(RailwayId(id), from.id, to.id, time, group?.let { GroupId(it) })
+        RailEdge(TestIds.railway(id), from.id, to.id, time, group?.let { TestIds.group(it) })
 
     private fun rightOrFail(result: Either<RouteError, Route>): Route {
         assertInstanceOf(Either.Right::class.java, result, "expected a route but got $result")
@@ -52,7 +53,7 @@ class RouteFinderTest {
 
         assertEquals(1, route.legs.size)
         assertEquals(TravelMode.RAIL, route.legs.first().mode)
-        assertEquals("rw", route.legs.first().railwayId?.value)
+        assertEquals(TestIds.railway("rw"), route.legs.first().railwayId)
         assertEquals(10L, route.totalSeconds)
     }
 
@@ -97,7 +98,7 @@ class RouteFinderTest {
 
         assertEquals(2, route.legs.size)
         assertTrue(route.legs.all { it.mode == TravelMode.RAIL })
-        assertEquals(listOf("a", "b", "c"), route.stations.map { it.value })
+        assertEquals(listOf("a", "b", "c").map(TestIds::station), route.stations)
         assertEquals(20L, route.totalSeconds)
     }
 
@@ -115,10 +116,10 @@ class RouteFinderTest {
 
         assertEquals(2, route.legs.size)
         assertEquals(TravelMode.RAIL, route.legs[0].mode)
-        assertEquals("main", route.legs[0].group?.value)
+        assertEquals(TestIds.group("main"), route.legs[0].group)
         assertEquals(TravelMode.WALK, route.legs[1].mode)
         assertNull(route.legs[1].group) // the rail group must not leak onto the walk leg
-        assertEquals("c", route.legs[1].to.value)
+        assertEquals(TestIds.station("c"), route.legs[1].to)
         assertEquals(7L, route.totalSeconds) // 5s rail + 2s walk
     }
 
@@ -137,7 +138,7 @@ class RouteFinderTest {
         assertEquals(TravelMode.RAIL, route.legs.last().mode)
         assertEquals(12L, route.totalSeconds) // 2s walk + 10s rail
         // current location is not a station, so the station list starts at 'a'.
-        assertEquals(listOf("a", "b"), route.stations.map { it.value })
+        assertEquals(listOf("a", "b").map(TestIds::station), route.stations)
     }
 
     @Test
@@ -172,8 +173,8 @@ class RouteFinderTest {
     @Test
     @DisplayName("uses the horizontal (2D) distance, ignoring the y difference")
     fun ignoresVerticalDistance() {
-        val a = StationNode(StationId("a"), "world", Point3D(0.0, 0.0, 0.0))
-        val b = StationNode(StationId("b"), "world", Point3D(10.0, 500.0, 0.0)) // huge y gap
+        val a = StationNode(TestIds.station("a"), "world", Point3D(0.0, 0.0, 0.0))
+        val b = StationNode(TestIds.station("b"), "world", Point3D(10.0, 500.0, 0.0)) // huge y gap
         val route = rightOrFail(RouteFinder.findRoute(listOf(a, b), emptyList(), Waypoint.Station(a), b))
 
         assertEquals(2L, route.totalSeconds) // 10 / 4.317 = 2s, y ignored
@@ -188,7 +189,7 @@ class RouteFinderTest {
             RouteFinder.findRoute(listOf(a, b), listOf(rail("rw", a, b, 10, group = "main-line")), Waypoint.Station(a), b)
         )
 
-        assertEquals("main-line", route.legs.first().group?.value)
+        assertEquals(TestIds.group("main-line"), route.legs.first().group)
     }
 
     @Test
@@ -247,7 +248,7 @@ class RouteFinderTest {
             RouteFinder.findRoute(listOf(a, b, b2, c), rails, Waypoint.Station(a), c, maxWalkSeconds = 60.0)
         )
         assertEquals(listOf(TravelMode.RAIL, TravelMode.WALK, TravelMode.RAIL), route.legs.map { it.mode })
-        assertEquals(listOf("a", "b", "b2", "c"), route.stations.map { it.value })
+        assertEquals(listOf("a", "b", "b2", "c").map(TestIds::station), route.stations)
     }
 
     @Test
@@ -282,7 +283,7 @@ class RouteFinderTest {
 
         assertEquals(1, route.legs.size)
         assertEquals(TravelMode.WALK, route.legs.first().mode)
-        assertEquals("a", route.legs.first().to.value)
+        assertEquals(TestIds.station("a"), route.legs.first().to)
     }
 
     @Test
@@ -313,7 +314,7 @@ class RouteFinderTest {
         val a = station("a", 0.0, 0.0)
         val b = station("b", 10.0, 0.0)
         // rail 'ghost' points a -> zzz which is not in the station list; it must be skipped, walking still works.
-        val ghost = RailEdge(RailwayId("ghost"), a.id, StationId("zzz"), 1, null)
+        val ghost = RailEdge(TestIds.railway("ghost"), a.id, TestIds.station("zzz"), 1, null)
         val route = rightOrFail(RouteFinder.findRoute(listOf(a, b), listOf(ghost), Waypoint.Station(a), b))
 
         assertEquals(TravelMode.WALK, route.legs.first().mode)

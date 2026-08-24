@@ -10,14 +10,14 @@
 package dev.nikomaru.advancerailway.commands.railway
 
 import arrow.core.Either
-import dev.nikomaru.advancerailway.commands.getOrSend
 import dev.nikomaru.advancerailway.domain.error.toUserMessage
 import dev.nikomaru.advancerailway.domain.geometry.Point3D
 import dev.nikomaru.advancerailway.domain.id.RailwayId
 import dev.nikomaru.advancerailway.domain.rail.RouteCandidate
 import dev.nikomaru.advancerailway.domain.service.RailwayUtils
 import dev.nikomaru.advancerailway.domain.service.StationUtils
-import dev.nikomaru.advancerailway.storage.model.RailwayData
+import dev.nikomaru.advancerailway.storage.database.repository.RailwayRepository
+import dev.nikomaru.advancerailway.utils.Utils.toLocation
 import org.bukkit.Bukkit
 import org.bukkit.World
 import org.bukkit.command.CommandSender
@@ -26,13 +26,17 @@ import org.incendo.cloud.annotations.Argument
 import org.incendo.cloud.annotations.Command
 import org.incendo.cloud.annotations.CommandDescription
 import org.incendo.cloud.annotations.Permission
+import org.koin.core.component.KoinComponent
+import org.koin.core.component.inject
 
 /**
  * `/ar railway explore` — 2点間で考えられる経路（分岐の全組合せ）の調査。
  * flags の長さに制限はなく、到達できる全候補を列挙する。
  */
 @Command("ar|advancerailway railway")
-class RailwayExploreCommand {
+class RailwayExploreCommand : KoinComponent {
+
+    private val railwayRepository: RailwayRepository by inject()
 
     @Command("explore point <startPoint> <endPoint>")
     @CommandDescription("2点間を結ぶ経路の候補を全分岐について調査します")
@@ -43,15 +47,15 @@ class RailwayExploreCommand {
         @Argument("endPoint") endPoint: Point3D,
     ) {
         val world = if (sender is Player) sender.world else Bukkit.getWorlds().first()
-        // 近傍駅が両方見つかれば inspect と同じ規則で railwayId 候補を組んで [作成] を出す
-        val fromStation = StationUtils.nearStation(startPoint.toLocation(world)).getOrNull()
-        val toStation = StationUtils.nearStation(endPoint.toLocation(world)).getOrNull()
-        val railwayId = if (fromStation != null && toStation != null) {
-            fromStation.value + "_" + toStation.value
+        // 近傍駅が両方見つかれば inspect と同じ規則で slug 候補を組んで [作成] を出す
+        val fromStation = StationUtils.nearStation(startPoint.toLocation(world))
+        val toStation = StationUtils.nearStation(endPoint.toLocation(world))
+        val suggestSlug = if (fromStation != null && toStation != null) {
+            fromStation.slug.value + "_" + toStation.slug.value
         } else {
             null
         }
-        sendRoutes(sender, startPoint, endPoint, world, suggestRailwayId = railwayId, currentFlags = null)
+        sendRoutes(sender, startPoint, endPoint, world, suggestSlug = suggestSlug, currentFlags = null)
     }
 
     @Command("explore railway <railwayId>")
@@ -61,19 +65,22 @@ class RailwayExploreCommand {
         sender: CommandSender,
         @Argument("railwayId") railwayId: RailwayId,
     ) {
-        val data = RailwayUtils.getRailwayData(railwayId).getOrSend(sender) { "<red>路線が見つかりません。" } ?: return
-        if (data !is RailwayData.V3) {
-            sender.sendRichMessage("<red>この路線は旧形式です。先に /ar railway migrate を実行してください。")
+        val data = railwayRepository.findById(railwayId) ?: run {
+            sender.sendRichMessage("<red>路線が見つかりません。")
+            return
+        }
+        val world = Bukkit.getWorld(data.worldName) ?: run {
+            sender.sendRichMessage("<red>ワールドが見つかりません: <white>${data.worldName}</white>")
             return
         }
         sendRoutes(
-            sender, data.startPoint, data.endPoint, data.world,
-            suggestRailwayId = data.id.value, currentFlags = data.flags,
+            sender, data.startPoint, data.endPoint, world,
+            suggestSlug = data.slug.value, currentFlags = data.flags,
         )
     }
 
     /**
-     * 候補を短い順に列挙する。[suggestRailwayId] があれば各候補に add の suggest を付け、
+     * 候補を短い順に列挙する。[suggestSlug] があれば各候補に add の suggest を付け、
      * [currentFlags]（explore railway のとき）と一致する候補には (現在) マークを付ける。
      */
     private suspend fun sendRoutes(
@@ -81,7 +88,7 @@ class RailwayExploreCommand {
         startPoint: Point3D,
         endPoint: Point3D,
         world: World,
-        suggestRailwayId: String?,
+        suggestSlug: String?,
         currentFlags: String?,
     ) {
         sender.sendRichMessage("<gray>経路を調査しています…")
@@ -104,14 +111,15 @@ class RailwayExploreCommand {
         for (route in routes.sortedBy { it.steps }) {
             val flagString = route.flagString()
             val current = if (flagString == currentFlags) " <yellow>(現在)</yellow>" else ""
-            val suggest = if (suggestRailwayId != null && current.isEmpty()) {
-                " <click:suggest_command:'/ar railway add $suggestRailwayId ${startPoint.toPlainString()} " +
+            val suggest = if (suggestSlug != null && current.isEmpty()) {
+                " <click:suggest_command:'/ar railway add $suggestSlug ${startPoint.toPlainString()} " +
                     "${endPoint.toPlainString()} $flagString'><green>[作成]</green></click>"
             } else {
                 ""
             }
             sender.sendRichMessage(
-                "<white>flags: $flagString</white> <gray>約 ${route.steps} ブロック / 約 ${route.steps / 8} 秒</gray>$current$suggest"
+                "<white>flags: $flagString</white> " +
+                    "<gray>約 ${route.steps} ブロック / 約 ${route.steps / 8} 秒</gray>$current$suggest"
             )
         }
     }

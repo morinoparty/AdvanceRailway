@@ -9,60 +9,69 @@
 
 package dev.nikomaru.advancerailway.commands.group
 
-import dev.nikomaru.advancerailway.storage.DataPaths
-import dev.nikomaru.advancerailway.storage.FileLoader
-import dev.nikomaru.advancerailway.storage.model.GroupData
-import dev.nikomaru.advancerailway.storage.model.RailwayData
 import dev.nikomaru.advancerailway.domain.id.GroupId
-import dev.nikomaru.advancerailway.domain.id.IdValidation
-import dev.nikomaru.advancerailway.utils.Utils.json
-import kotlinx.serialization.decodeFromString
+import dev.nikomaru.advancerailway.domain.id.Slug
+import dev.nikomaru.advancerailway.platform.map.MapRenderer
+import dev.nikomaru.advancerailway.storage.database.repository.GroupRepository
+import dev.nikomaru.advancerailway.storage.database.repository.RailwayRepository
+import dev.nikomaru.advancerailway.storage.model.GroupData
 import org.bukkit.command.CommandSender
 import org.incendo.cloud.annotations.Argument
 import org.incendo.cloud.annotations.Command
 import org.incendo.cloud.annotations.CommandDescription
 import org.incendo.cloud.annotations.Permission
+import org.koin.core.component.KoinComponent
+import org.koin.core.component.inject
 import java.awt.Color
 
 @Command("ar|advancerailway group")
-class GroupMainCommand {
+class GroupMainCommand : KoinComponent {
 
-    @Command("add <id> <name>")
+    private val groupRepository: GroupRepository by inject()
+    private val railwayRepository: RailwayRepository by inject()
+
+    @Command("add <slug> <name>")
     @CommandDescription("グループを新規登録します")
     @Permission("advancerailway.group.manage")
-    fun add(sender: CommandSender, @Argument("id") id: String, @Argument("name") name: String) {
-        if (!IdValidation.isValid(id)) {
-            sender.sendRichMessage("<red>グループ ID が不正です: <white>$id</white>")
+    suspend fun add(sender: CommandSender, @Argument("slug") rawSlug: String, @Argument("name") name: String) {
+        val slug = Slug.parse(rawSlug) ?: run {
+            sender.sendRichMessage("<red>グループ slug が不正です: <white>$rawSlug</white>")
             return
         }
-        val groupId = GroupId(id)
-        val data = GroupData(groupId, name, Color.getHSBColor(Math.random().toFloat(), 1.0f, 1.0f))
-        data.save()
+        if (groupRepository.slugExists(slug)) {
+            sender.sendRichMessage("<red>その slug は既に使われています: <white>$rawSlug</white>")
+            return
+        }
+        groupRepository.insert(
+            GroupData(
+                id = GroupId.new(),
+                slug = slug,
+                name = name,
+                railwayColor = Color.getHSBColor(Math.random().toFloat(), 1.0f, 1.0f),
+            )
+        )
+        MapRenderer.refresh()
         sender.sendRichMessage("<green>グループを追加しました。")
     }
 
-    @Command("remove <id>")
+    @Command("remove <groupId>")
     @CommandDescription("グループを削除します（依存路線があれば拒否します）")
     @Permission("advancerailway.group.manage")
-    suspend fun remove(sender: CommandSender, @Argument("id") id: GroupId) {
-        val file = DataPaths.groups.resolve("${id.value}.json")
-        if (!file.exists()) {
+    suspend fun remove(sender: CommandSender, @Argument("groupId") groupId: GroupId) {
+        val data = groupRepository.findById(groupId) ?: run {
             sender.sendRichMessage("<red>グループが見つかりません。")
             return
         }
-        val dependents = (DataPaths.railways.listFiles() ?: emptyArray()).mapNotNull { railwayFile ->
-            runCatching { json.decodeFromString<RailwayData>(railwayFile.readText()) }.getOrNull()
-        }.filter { it.group == id }.map { it.id.value }
+        val dependents = railwayRepository.findByGroup(groupId)
         if (dependents.isNotEmpty()) {
             sender.sendRichMessage(
-                "<red>グループ <yellow>${id.value}</yellow> は削除できません。" +
-                    "次の路線が参照しています: <white>${dependents.joinToString(", ")}</white>"
+                "<red>グループ <yellow>${data.slug.value}</yellow> は削除できません。" +
+                    "次の路線が参照しています: <white>${dependents.joinToString(", ") { it.slug.value }}</white>"
             )
             return
         }
-        file.delete()
-        FileLoader.mapDataLoad()
+        groupRepository.delete(groupId)
+        MapRenderer.refresh()
         sender.sendRichMessage("<green>グループを削除しました。")
     }
-
 }
