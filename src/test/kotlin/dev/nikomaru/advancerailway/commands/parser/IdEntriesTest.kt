@@ -90,7 +90,7 @@ class IdEntriesTest {
         val entries = IdEntries.stations()
         val fti = stations.findBySlug(Slug("fti"))!!
 
-        assertEquals(setOf("ふれんちとーす島", "赤松"), IdIndex.suggestions(entries))
+        assertEquals(setOf("ふれんちとーす島", "赤松", "fti", "akmt"), IdIndex.suggestions(entries))
         assertEquals(fti.id.value, IdIndex.resolve(entries, "ふれんちとーす島"))
         assertEquals(fti.id.value, IdIndex.resolve(entries, "fti"))
         assertEquals(fti.id.value, IdIndex.resolve(entries, fti.id.value.toString()))
@@ -103,7 +103,7 @@ class IdEntriesTest {
         val entries = IdEntries.groups()
         val group = groups.findBySlug(Slug("ym"))!!
 
-        assertEquals(setOf("山手線"), IdIndex.suggestions(entries))
+        assertEquals(setOf("山手線", "ym"), IdIndex.suggestions(entries))
         assertEquals(group.id.value, IdIndex.resolve(entries, "山手線"))
         assertEquals(group.id.value, IdIndex.resolve(entries, "ym"))
     }

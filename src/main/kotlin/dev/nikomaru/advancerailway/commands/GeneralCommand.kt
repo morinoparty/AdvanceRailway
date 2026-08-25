@@ -67,7 +67,7 @@ class GeneralCommand : KoinComponent {
         sender.sendRichMessage("<yellow>■ 一般")
         sender.sendRichMessage("<white>/ar info <gray>- プラグイン情報")
         sender.sendRichMessage("<white>/ar help <gray>- このヘルプ")
-        sender.sendRichMessage("<white>/ar inspect [flags] [--to <駅>] <gray>- 線路の解析 (運営)")
+        sender.sendRichMessage("<white>/ar inspect [方角] [--to <駅>] <gray>- 線路の解析 (運営)")
         sender.sendRichMessage("<yellow>■ 駅 <gray>(閲覧は全員 / 編集は運営)")
         sender.sendRichMessage("<white>/ar station list [page] <gray>- 駅一覧")
         sender.sendRichMessage("<white>/ar station info <駅> <gray>- 駅の詳細")
@@ -100,16 +100,21 @@ class GeneralCommand : KoinComponent {
      * クリックしたレールから線路網を探索する。分岐の多い場所では終端が一気に増えるため、
      * 見たい経路をあらかじめ絞れるようにしている。
      *
-     * - `flags` — たどる方角の並び（例 `E` / `EE`）。先頭が出発方角で、指定した並びから
+     * - `direction` — たどる方角の並び（例 `E` / `EE`）。先頭が出発方角で、指定した並びから
      *   外れる分岐は探索しない。省略すると全方向を探索する。
      * - `--to` — その駅を終点とする経路だけを表示する。
+     *
+     * 位置引数を `flags` という名前にしてはいけない。Cloud はフラグを 1 つでも宣言すると
+     * `flags` という名前の内部コンポーネントを自分で足すため（Command.Builder.build）、
+     * 同名の引数を作ると解決時にフラグのパーサ値が渡り、実行時に
+     * `IllegalArgumentException: argument type mismatch` で落ちる。
      */
-    @Command("inspect [flags]")
-    @CommandDescription("クリックしたレールを解析します（flags で方向を絞り、--to で終点駅を指定）")
+    @Command("inspect [direction]")
+    @CommandDescription("クリックしたレールを解析します（方角で絞り込み、--to で終点駅を指定）")
     @Permission("advancerailway.inspect")
     suspend fun inspect(
         sender: CommandSender,
-        @Argument("flags") flags: String?,
+        @Argument("direction") direction: String?,
         @Flag(
             value = "to",
             aliases = ["t"],
@@ -121,12 +126,12 @@ class GeneralCommand : KoinComponent {
             return
         }
         // 空文字は「指定なし」として扱う（Cloud の省略可能引数は空文字で渡ってくることがある）。
-        val prefix = if (flags.isNullOrBlank()) {
+        val prefix = if (direction.isNullOrBlank()) {
             emptyList()
         } else {
-            BranchDirection.parse(flags) ?: run {
+            BranchDirection.parse(direction) ?: run {
                 sender.sendRichMessage(
-                    "<red>flags が不正です（N/S/E/W の並びで指定してください）: <white>$flags</white>"
+                    "<red>方角の指定が不正です（N/S/E/W の並びで指定してください）: <white>$direction</white>"
                 )
                 return
             }
