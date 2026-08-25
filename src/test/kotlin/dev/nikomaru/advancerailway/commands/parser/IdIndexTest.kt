@@ -29,9 +29,22 @@ class IdIndexTest {
     private val noname = IdEntry(UUID.fromString("01890000-0000-7000-8000-000000000003"), "noname", null)
 
     @Test
-    @DisplayName("suggestions offer display names, not slugs, when a name is present")
-    fun suggestsNames() {
-        assertEquals(setOf("ふれんちとーす島", "赤松"), IdIndex.suggestions(listOf(fti, akmt)))
+    @DisplayName("suggestions offer both the display name and the slug")
+    fun suggestsNamesAndSlugs() {
+        // 表示名しか出さないと、slug を知っている人が打ち始めても候補が出ない。
+        assertEquals(
+            setOf("ふれんちとーす島", "赤松", "fti", "akmt"),
+            IdIndex.suggestions(listOf(fti, akmt)),
+        )
+    }
+
+    @Test
+    @DisplayName("display names come before slugs so they are easier to scan")
+    fun namesComeFirst() {
+        assertEquals(
+            listOf("ふれんちとーす島", "赤松", "fti", "akmt"),
+            IdIndex.suggestions(listOf(fti, akmt)).toList(),
+        )
     }
 
     @Test
@@ -63,7 +76,7 @@ class IdIndexTest {
     @DisplayName("an entry without a name falls back to its slug for suggestions and still resolves")
     fun blankNameFallsBackToSlug() {
         val entries = listOf(fti, noname)
-        assertEquals(setOf("ふれんちとーす島", "noname"), IdIndex.suggestions(entries))
+        assertEquals(setOf("ふれんちとーす島", "fti", "noname"), IdIndex.suggestions(entries))
         assertEquals(noname.id, IdIndex.resolve(entries, "noname"))
     }
 

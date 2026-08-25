@@ -29,8 +29,15 @@ data class IdEntry(val id: UUID, val slug: String, val name: String?)
  */
 object IdIndex {
 
-    /** 補完候補: 表示名があれば表示名、無ければ slug。 */
-    fun suggestions(entries: List<IdEntry>): Set<String> = entries.map { it.name ?: it.slug }.toSet()
+    /**
+     * 補完候補: 表示名と slug の両方。
+     *
+     * 表示名だけだと、slug を知っている人が打ち始めても候補が出ない。逆に slug だけだと
+     * 何の駅か分からない。[resolve] はどちらでも解決できるので、候補にも両方載せる。
+     * 表示名を先に並べるのは、そちらの方が探しやすいため。
+     */
+    fun suggestions(entries: List<IdEntry>): Set<String> =
+        (entries.mapNotNull { it.name } + entries.map { it.slug }).toSet()
 
     /**
      * 入力を表示名 → slug → UUID の順に解決する。

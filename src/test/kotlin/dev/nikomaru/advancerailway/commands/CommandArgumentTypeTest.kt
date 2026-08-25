@@ -23,7 +23,9 @@ import dev.nikomaru.advancerailway.commands.station.StationMainCommand
 import dev.nikomaru.advancerailway.domain.id.GroupId
 import dev.nikomaru.advancerailway.domain.id.RailwayId
 import dev.nikomaru.advancerailway.domain.id.StationId
+import org.incendo.cloud.annotations.Argument
 import org.incendo.cloud.annotations.Command
+import org.incendo.cloud.annotations.Flag
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
@@ -40,6 +42,9 @@ import java.util.UUID
  * 型の宣言だけを見ても気づけない壊れ方なので、コンパイル後のシグネチャを直接確認する。
  */
 class CommandArgumentTypeTest {
+
+    /** Cloud がフラグ用に自動で足すコンポーネントの名前（`Command.Builder.build`）。 */
+    private val CLOUD_FLAG_COMPONENT_NAME = "flags"
 
     private val commandClasses = listOf(
         GeneralCommand::class.java,
@@ -84,6 +89,29 @@ class CommandArgumentTypeTest {
         assertTrue(
             handlersTakingIds.size >= 10,
             "ID 型を引数に取るハンドラが ${handlersTakingIds.size} 件しかありません（型が消えている可能性）",
+        )
+    }
+
+    @Test
+    @DisplayName("no command mixes flags with an argument named 'flags', which Cloud reserves")
+    fun noArgumentShadowsCloudsFlagComponent() {
+        // Cloud はフラグを 1 つでも宣言すると `flags` という名前の内部コンポーネントを自分で足す
+        // （Command.Builder.build）。同名の位置引数を作ると解決時にフラグのパーサ値が渡り、
+        // 実行時に IllegalArgumentException: argument type mismatch で落ちる。
+        val offenders = commandMethods()
+            .filter { (_, method) -> method.parameters.any { it.isAnnotationPresent(Flag::class.java) } }
+            .filter { (_, method) ->
+                method.parameters.any { parameter ->
+                    val argument = parameter.getAnnotation(Argument::class.java) ?: return@any false
+                    val name = argument.value.takeIf { it.isNotEmpty() } ?: parameter.name
+                    name == CLOUD_FLAG_COMPONENT_NAME
+                }
+            }
+            .map { (type, method) -> "${type.simpleName}.${method.name}" }
+
+        assertTrue(
+            offenders.isEmpty(),
+            "Cloud が予約している '$CLOUD_FLAG_COMPONENT_NAME' を引数名に使っています: $offenders",
         )
     }
 
