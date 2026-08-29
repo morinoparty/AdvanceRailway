@@ -14,7 +14,7 @@ junitVersion = "6.1.3"
 arrow-ktVersion = "2.2.3"
 # データベース層。Kerria / MoripaFishing / MineAuth と同じ Exposed 1.3.x 系に揃える。
 exposedVersion = "1.3.1"
-sqliteVersion = "3.53.2.0"
+sqliteVersion = "3.53.4.0"
 # UUIDv7（time-ordered epoch）の採番。JDK / Kotlin stdlib は v4 しか生成できない。
 uuidCreatorVersion = "6.1.1"
 mineauthVersion = "0.3.6"
