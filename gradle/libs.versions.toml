@@ -17,7 +17,7 @@ exposedVersion = "1.5.0"
 sqliteVersion = "3.53.4.0"
 # UUIDv7（time-ordered epoch）の採番。JDK / Kotlin stdlib は v4 しか生成できない。
 uuidCreatorVersion = "6.1.1"
-mineauthVersion = "0.3.11"
+mineauthVersion = "0.3.12"
 mockbukkitVersion = "4.116.3"
 mockkVersion = "1.14.11"
 # MockBukkit がターゲットとする paper-api（テスト実行時のみ使用）。
