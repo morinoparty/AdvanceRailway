@@ -79,8 +79,8 @@ dependencies {
     testImplementation(libs.mockbukkit)
     testImplementation(libs.mockk)
     // paper-api は main では compileOnly のため、テスト実行時に別途載せる。
-    // MockBukkit 4.110.0 が実装するレジストリ ABI に合わせ、テストでは 1.21.11 の paper-api を使う
-    // （main の 26.x は compileOnly なのでテスト実行クラスパスには載らず、競合しない）。
+    // MockBukkit（mockbukkit-v26.3）が実装するレジストリ ABI に合わせた paper-api を使う
+    // （main の paper-api は compileOnly なのでテスト実行クラスパスには載らず、競合しない）。
     testImplementation(libs.paper.api.test)
     // ハンドラーが返す DTO / throw する HttpError をテストから参照するため
     // （main では compileOnly のためテストクラスパスには別途載せる）。
