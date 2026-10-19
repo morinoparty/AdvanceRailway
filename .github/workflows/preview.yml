@@ -163,8 +163,12 @@ jobs:
           retention-days: 1
 
   # S3 アップロードジョブ（JAR・レポート・Docs）
+  # Dependabot が起動した実行には Actions secrets が渡されず（Dependabot secrets のみ）、
+  # Bitwarden のアクセストークンが空になって必ず失敗するため、アップロードとコメントはスキップする。
+  # github.actor は再実行時も最初の起動者のままで、secrets の可否もそれに従うため判定に使える。
   upload-s3:
     needs: [setup, build-gradle, build-docs]
+    if: ${{ github.actor != 'dependabot[bot]' }}
     runs-on: ubuntu-latest
     env:
       COMMIT_SHORT_SHA: ${{ needs.setup.outputs.commit_sha }}
@@ -214,7 +218,7 @@ jobs:
   comment:
     needs: [setup, build-gradle, upload-s3]
     runs-on: ubuntu-latest
-    if: ${{ github.event.action == 'opened' || github.event.action == 'synchronize' }}
+    if: ${{ github.actor != 'dependabot[bot]' && (github.event.action == 'opened' || github.event.action == 'synchronize') }}
     env:
       COMMIT_SHORT_SHA: ${{ needs.setup.outputs.commit_sha }}
     steps:
