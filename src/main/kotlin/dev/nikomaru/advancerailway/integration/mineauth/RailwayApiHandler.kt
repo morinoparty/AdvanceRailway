@@ -78,11 +78,14 @@ import java.time.Instant
  * MineAuth の HTTP API へ AdvanceRailway の駅・路線・グループを公開するハンドラー。
  * `/api/v1/plugins/advancerailway/` 配下にエンドポイントを提供する。
  *
- * 各エンドポイントは [Authenticated] で保護し、サービストークンと `advancerailway.admin` を持つ
- * プレイヤーのユーザートークンの双方から呼び出せるようにする。
- * サービストークンは管理者が発行する信頼された資格情報として扱われ、パーミッションノードの
- * 評価対象外となる。ユーザートークンは [ADMIN_PERMISSION] を持つ場合のみ通過する
- * （権限判定はオンラインのプレイヤーに対して行われ、オフラインなら 403 `player_offline`）。
+ * 各エンドポイントは [Authenticated] で保護し、サービストークンとユーザートークンの双方から呼び出せるようにする。
+ * サービストークンは管理者が発行する信頼された資格情報として扱われ、パーミッションノードの評価対象外となる。
+ *
+ * - 読み取り系（GET）: パーミッションを指定せず、ログイン済みのプレイヤーなら誰でも呼び出せる。
+ *   Web の路線図など、ゲームにログインしていないプレイヤーからも参照されるため、
+ *   オフライン時の権限評価に依存しないよう認証のみとしている。
+ *   返す情報（駅・路線・グループの座標や名前）は squaremap で公開済みのものに限られる。
+ * - 書き込み系（POST / PATCH / PUT / DELETE）: ユーザートークンは [ADMIN_PERMISSION] を持つ場合のみ通過する。
  *
  * データはすべてデータベースから読み書きする。`/ar file` によるファイルの入出力は廃止し、
  * 外部からの登録・編集・削除はこの API が担う。
@@ -97,7 +100,7 @@ class RailwayApiHandler : KoinComponent {
 
     companion object {
         /**
-         * ユーザートークンでの呼び出しに要求するパーミッションノード。
+         * 書き込み系エンドポイントをユーザートークンで呼び出す際に要求するパーミッションノード。
          * サービストークンは信頼された資格情報のため、この評価対象外となる。
          */
         const val ADMIN_PERMISSION = "advancerailway.admin"
@@ -130,7 +133,7 @@ class RailwayApiHandler : KoinComponent {
      * GET /stations?limit={n}&offset={n}
      */
     @Get("/stations")
-    @Authenticated(permission = ADMIN_PERMISSION, callers = [CallerType.USER, CallerType.SERVICE])
+    @Authenticated(callers = [CallerType.USER, CallerType.SERVICE])
     suspend fun listStations(
         @Query("limit") limit: Int? = null,
         @Query("offset") offset: Int? = null,
@@ -147,7 +150,7 @@ class RailwayApiHandler : KoinComponent {
      * GET /stations/{id}
      */
     @Get("/stations/{id}")
-    @Authenticated(permission = ADMIN_PERMISSION, callers = [CallerType.USER, CallerType.SERVICE])
+    @Authenticated(callers = [CallerType.USER, CallerType.SERVICE])
     suspend fun getStation(@Path("id") id: String): StationDto {
         val station = requireStation(id)
         return station.toDto(groupRepository.groupsOf(station.id))
@@ -158,7 +161,7 @@ class RailwayApiHandler : KoinComponent {
      * GET /stations/{id}/railways
      */
     @Get("/stations/{id}/railways")
-    @Authenticated(permission = ADMIN_PERMISSION, callers = [CallerType.USER, CallerType.SERVICE])
+    @Authenticated(callers = [CallerType.USER, CallerType.SERVICE])
     suspend fun stationRailways(@Path("id") id: String): RailwaysResponse {
         val station = requireStation(id)
         return railwaysResponse(railwayRepository.findByStation(station.id))
@@ -170,7 +173,7 @@ class RailwayApiHandler : KoinComponent {
      * - 同一ワールドに駅が 1 つも無い場合は 404 `no_station`。
      */
     @Get("/nearest-station")
-    @Authenticated(permission = ADMIN_PERMISSION, callers = [CallerType.USER, CallerType.SERVICE])
+    @Authenticated(callers = [CallerType.USER, CallerType.SERVICE])
     suspend fun nearestStation(
         @Query("world") world: String,
         @Query("x") x: Double,
@@ -264,7 +267,7 @@ class RailwayApiHandler : KoinComponent {
      * GET /railways?limit={n}&offset={n}
      */
     @Get("/railways")
-    @Authenticated(permission = ADMIN_PERMISSION, callers = [CallerType.USER, CallerType.SERVICE])
+    @Authenticated(callers = [CallerType.USER, CallerType.SERVICE])
     suspend fun listRailways(
         @Query("limit") limit: Int? = null,
         @Query("offset") offset: Int? = null,
@@ -278,7 +281,7 @@ class RailwayApiHandler : KoinComponent {
      * GET /railways/{id}
      */
     @Get("/railways/{id}")
-    @Authenticated(permission = ADMIN_PERMISSION, callers = [CallerType.USER, CallerType.SERVICE])
+    @Authenticated(callers = [CallerType.USER, CallerType.SERVICE])
     suspend fun getRailway(@Path("id") id: String): RailwayDto = toRailwayDto(requireRailway(id))
 
     // ---------------------------------------------------------------- 路線（書き込み）
@@ -410,7 +413,7 @@ class RailwayApiHandler : KoinComponent {
      * GET /groups?limit={n}&offset={n}
      */
     @Get("/groups")
-    @Authenticated(permission = ADMIN_PERMISSION, callers = [CallerType.USER, CallerType.SERVICE])
+    @Authenticated(callers = [CallerType.USER, CallerType.SERVICE])
     suspend fun listGroups(
         @Query("limit") limit: Int? = null,
         @Query("offset") offset: Int? = null,
@@ -424,7 +427,7 @@ class RailwayApiHandler : KoinComponent {
      * GET /groups/{id}
      */
     @Get("/groups/{id}")
-    @Authenticated(permission = ADMIN_PERMISSION, callers = [CallerType.USER, CallerType.SERVICE])
+    @Authenticated(callers = [CallerType.USER, CallerType.SERVICE])
     suspend fun getGroup(@Path("id") id: String): GroupDto = requireGroup(id).toDto()
 
     /**
@@ -432,7 +435,7 @@ class RailwayApiHandler : KoinComponent {
      * GET /groups/{id}/railways
      */
     @Get("/groups/{id}/railways")
-    @Authenticated(permission = ADMIN_PERMISSION, callers = [CallerType.USER, CallerType.SERVICE])
+    @Authenticated(callers = [CallerType.USER, CallerType.SERVICE])
     suspend fun groupRailways(@Path("id") id: String): RailwaysResponse =
         railwaysResponse(railwayRepository.findByGroup(requireGroup(id).id))
 
@@ -441,7 +444,7 @@ class RailwayApiHandler : KoinComponent {
      * GET /groups/{id}/stations
      */
     @Get("/groups/{id}/stations")
-    @Authenticated(permission = ADMIN_PERMISSION, callers = [CallerType.USER, CallerType.SERVICE])
+    @Authenticated(callers = [CallerType.USER, CallerType.SERVICE])
     suspend fun groupStations(@Path("id") id: String): GroupStationsResponse {
         val group = requireGroup(id)
         val numberings = groupRepository.allGroupsOfStations()
@@ -581,7 +584,7 @@ class RailwayApiHandler : KoinComponent {
      * - 経路が存在しない: 404 `no_route`
      */
     @Get("/route")
-    @Authenticated(permission = ADMIN_PERMISSION, callers = [CallerType.USER, CallerType.SERVICE])
+    @Authenticated(callers = [CallerType.USER, CallerType.SERVICE])
     suspend fun getRoute(
         @Query("from") from: String,
         @Query("to") to: String,
@@ -617,7 +620,7 @@ class RailwayApiHandler : KoinComponent {
      * GET /stats
      */
     @Get("/stats")
-    @Authenticated(permission = ADMIN_PERMISSION, callers = [CallerType.USER, CallerType.SERVICE])
+    @Authenticated(callers = [CallerType.USER, CallerType.SERVICE])
     suspend fun stats(): StatsResponse =
         StatsResponse(
             stations = stationRepository.count().toInt(),
