@@ -71,19 +71,29 @@ MineAuth が未導入の場合、これらのエンドポイントは登録さ�
 
 ## 認証
 
-全エンドポイントは `@Authenticated(permission = "advancerailway.admin", callers = [CallerType.USER, CallerType.SERVICE])`
-を宣言しており、次のいずれかで呼び出せます。
+全エンドポイントは `@Authenticated` を宣言しており、ログインなしの匿名アクセスはできません。
+サービスアカウントトークンとプレイヤーのユーザートークンのどちらでも呼び出せますが、
+読み取りと書き込みで要求する権限が異なります。
+
+| 種別 | 宣言 | プレイヤーのユーザートークン | サービスアカウントトークン |
+| --- | --- | --- | --- |
+| 読み取り（GET） | `@Authenticated(callers = [CallerType.USER, CallerType.SERVICE])` | ログイン済みのプレイヤーなら誰でも | 可 |
+| 書き込み（POST / PATCH / PUT / DELETE） | `@Authenticated(permission = "advancerailway.admin", callers = [CallerType.USER, CallerType.SERVICE])` | `advancerailway.admin` を持つプレイヤーのみ | 可 |
 
 - **サービスアカウントトークン** — 管理者が MineAuth 経由で発行する信頼された資格情報。
-  信頼された資格情報として扱われるため、MineAuth は Bukkit のパーミッションノードを評価しません。
-- **プレイヤーのユーザートークン** — `advancerailway.admin` を持つプレイヤーのみ。
-  権限を持たないプレイヤーのトークンは拒否されます。
+  MineAuth は Bukkit のパーミッションノードを評価しません。
+  データの書き換えもできるため、信頼できるバックエンド連携にのみ発行してください。
+- **プレイヤーのユーザートークン** — MineAuth の `plugin` スコープを持つトークンである必要があります
+  （持たない場合は HTTP `403`（`insufficient_scope`））。
+  読み取りはパーミッションを評価しないため、プレイヤーがゲームにログインしていなくても呼び出せます。
+  書き込みは `advancerailway.admin` を持たないプレイヤーのトークンを HTTP `403` で拒否します。
 
-座標などの情報を含み、データの書き換えもできるため、サービストークンは信頼できるバックエンド連携にのみ発行してください。
+読み取りで返すのは駅・路線・グループの名前・色・座標・ワールド名など、squaremap の地図で公開済みの情報だけです。
+プレイヤーの UUID やパーミッションは含みません。
 
 :::note
-ユーザートークンのパーミッション判定はオンラインのプレイヤーに対して行われます。
-発行元のプレイヤーがオフラインの場合、リクエストは HTTP `403`（`player_offline`）で拒否されます。
+書き込み時の `advancerailway.admin` の判定は MineAuth が行います。
+プレイヤーがオフラインの場合の扱い（LuckPerms での評価、または HTTP `403` `player_offline`）は MineAuth のバージョンに依存します。
 :::
 
 設定で連携を無効化することもできます（プラグイン設定の `mineAuthEnabled: false`）。
