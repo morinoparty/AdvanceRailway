@@ -68,7 +68,6 @@ import party.morino.mineauth.api.annotations.Path
 import party.morino.mineauth.api.annotations.Post
 import party.morino.mineauth.api.annotations.Put
 import party.morino.mineauth.api.annotations.Query
-import party.morino.mineauth.api.http.HttpError
 import party.morino.mineauth.api.http.HttpStatus
 import party.morino.mineauth.api.http.Response
 import java.awt.Color
@@ -181,7 +180,7 @@ class RailwayApiHandler : KoinComponent {
     ): StationDto {
         val target = Point3D(x, 0.0, z)
         val nearest = stationRepository.findByWorld(world).minByOrNull { it.point.distanceTo2D(target) }
-            ?: throw HttpError(HttpStatus.NOT_FOUND, "No station in world: $world", code = "no_station")
+            ?: throw apiError(HttpStatus.NOT_FOUND, "No station in world: $world", code = "no_station")
         return nearest.toDto(groupRepository.groupsOf(nearest.id))
     }
 
@@ -248,7 +247,7 @@ class RailwayApiHandler : KoinComponent {
         val station = requireStation(id)
         val dependents = railwayRepository.findByStation(station.id)
         if (dependents.isNotEmpty()) {
-            throw HttpError(
+            throw apiError(
                 HttpStatus.CONFLICT,
                 "Station is referenced by ${dependents.size} railway(s)",
                 code = "station_in_use",
@@ -298,7 +297,7 @@ class RailwayApiHandler : KoinComponent {
     suspend fun createRailway(@Body request: CreateRailwayRequest): Response<RailwayDto> {
         val slug = requireSlug(request.slug)
         if (railwayRepository.slugExists(slug)) {
-            throw HttpError(HttpStatus.CONFLICT, "Railway slug already in use: ${slug.value}", code = "slug_conflict")
+            throw apiError(HttpStatus.CONFLICT, "Railway slug already in use: ${slug.value}", code = "slug_conflict")
         }
         val world = requireWorld(request.world)
         val startPoint = request.startPoint.toPoint3D()
@@ -306,7 +305,7 @@ class RailwayApiHandler : KoinComponent {
         val flags = requireFlags(request.flags)
         // レールのトレースはワールドのブロックを読むため、RailwayUtils 側でメインスレッドへ切り替わる。
         val line = when (val traced = RailwayUtils.getLine(startPoint, endPoint, flags)) {
-            is Either.Left -> throw HttpError(
+            is Either.Left -> throw apiError(
                 HttpStatus.UNPROCESSABLE_ENTITY, "Failed to trace rails: ${traced.value}", code = "trace_failed"
             )
 
@@ -348,7 +347,7 @@ class RailwayApiHandler : KoinComponent {
         val current = requireRailway(id)
         val slug = request.slug?.let { requireSlug(it) }?.also {
             if (railwayRepository.slugExists(it, excluding = current.id)) {
-                throw HttpError(HttpStatus.CONFLICT, "Railway slug already in use: ${it.value}", code = "slug_conflict")
+                throw apiError(HttpStatus.CONFLICT, "Railway slug already in use: ${it.value}", code = "slug_conflict")
             }
         }
         val retrace = request.startPoint != null && request.endPoint != null && request.flags != null
@@ -362,7 +361,7 @@ class RailwayApiHandler : KoinComponent {
             endPoint = request.endPoint!!.toPoint3D()
             val parsed = requireFlags(request.flags!!)
             line = when (val traced = RailwayUtils.getLine(startPoint, endPoint, parsed)) {
-                is Either.Left -> throw HttpError(
+                is Either.Left -> throw apiError(
                     HttpStatus.UNPROCESSABLE_ENTITY, "Failed to trace rails: ${traced.value}", code = "trace_failed"
                 )
 
@@ -470,7 +469,7 @@ class RailwayApiHandler : KoinComponent {
     suspend fun createGroup(@Body request: CreateGroupRequest): Response<GroupDto> {
         val slug = requireSlug(request.slug)
         if (groupRepository.slugExists(slug)) {
-            throw HttpError(HttpStatus.CONFLICT, "Group slug already in use: ${slug.value}", code = "slug_conflict")
+            throw apiError(HttpStatus.CONFLICT, "Group slug already in use: ${slug.value}", code = "slug_conflict")
         }
         val data = GroupData(
             id = GroupId.new(),
@@ -498,7 +497,7 @@ class RailwayApiHandler : KoinComponent {
         val current = requireGroup(id)
         val slug = request.slug?.let { requireSlug(it) }?.also {
             if (groupRepository.slugExists(it, excluding = current.id)) {
-                throw HttpError(HttpStatus.CONFLICT, "Group slug already in use: ${it.value}", code = "slug_conflict")
+                throw apiError(HttpStatus.CONFLICT, "Group slug already in use: ${it.value}", code = "slug_conflict")
             }
         }
         val updated = current.copy(
@@ -536,7 +535,7 @@ class RailwayApiHandler : KoinComponent {
         for (token in request.stations) {
             val station = requireStation(token)
             if (station.id in resolved) {
-                throw HttpError(
+                throw apiError(
                     HttpStatus.UNPROCESSABLE_ENTITY,
                     "Station listed more than once: $token",
                     code = "duplicate_station",
@@ -560,7 +559,7 @@ class RailwayApiHandler : KoinComponent {
         val group = requireGroup(id)
         val dependents = railwayRepository.findByGroup(group.id)
         if (dependents.isNotEmpty()) {
-            throw HttpError(
+            throw apiError(
                 HttpStatus.CONFLICT,
                 "Group is referenced by ${dependents.size} railway(s)",
                 code = "group_in_use",
@@ -602,11 +601,11 @@ class RailwayApiHandler : KoinComponent {
         val groupNames = groupRepository.findAll().associate { it.id to it.name }
         return when (val result = RouteFinder.findRoute(stations, railways, Waypoint.Station(fromNode), toNode)) {
             is Either.Left -> when (result.value) {
-                RouteError.SameStation -> throw HttpError(
+                RouteError.SameStation -> throw apiError(
                     HttpStatus.BAD_REQUEST, "Departure and destination are the same station", code = "same_station"
                 )
 
-                RouteError.NoPath -> throw HttpError(
+                RouteError.NoPath -> throw apiError(
                     HttpStatus.NOT_FOUND, "No route between $from and $to", code = "no_route"
                 )
             }
@@ -633,32 +632,32 @@ class RailwayApiHandler : KoinComponent {
     /** UUID でも slug でも駅を引く。見つからなければ 404。 */
     private suspend fun requireStation(raw: String): StationData =
         stationRepository.resolve(raw)
-            ?: throw HttpError(HttpStatus.NOT_FOUND, "Station not found: $raw", code = "station_not_found")
+            ?: throw apiError(HttpStatus.NOT_FOUND, "Station not found: $raw", code = "station_not_found")
 
     /** 経路探索の端点。エラーコードを `station_not_found` に統一するため別関数にしている。 */
     private suspend fun requireRouteStation(raw: String): StationData = requireStation(raw)
 
     private suspend fun requireRailway(raw: String): RailwayData =
         railwayRepository.resolve(raw)
-            ?: throw HttpError(HttpStatus.NOT_FOUND, "Railway not found: $raw", code = "railway_not_found")
+            ?: throw apiError(HttpStatus.NOT_FOUND, "Railway not found: $raw", code = "railway_not_found")
 
     private suspend fun requireGroup(raw: String): GroupData =
         groupRepository.resolve(raw)
-            ?: throw HttpError(HttpStatus.NOT_FOUND, "Group not found: $raw", code = "group_not_found")
+            ?: throw apiError(HttpStatus.NOT_FOUND, "Group not found: $raw", code = "group_not_found")
 
     private fun requireSlug(raw: String): Slug =
         Slug.parse(raw)
-            ?: throw HttpError(HttpStatus.UNPROCESSABLE_ENTITY, "Invalid slug: $raw", code = "invalid_slug")
+            ?: throw apiError(HttpStatus.UNPROCESSABLE_ENTITY, "Invalid slug: $raw", code = "invalid_slug")
 
     private suspend fun requireStationSlugFree(slug: Slug, excluding: StationId?) {
         if (stationRepository.slugExists(slug, excluding = excluding)) {
-            throw HttpError(HttpStatus.CONFLICT, "Station slug already in use: ${slug.value}", code = "slug_conflict")
+            throw apiError(HttpStatus.CONFLICT, "Station slug already in use: ${slug.value}", code = "slug_conflict")
         }
     }
 
     private fun requireFlags(raw: String): List<BranchDirection> =
         BranchDirection.parse(raw)?.takeIf { it.isNotEmpty() }
-            ?: throw HttpError(
+            ?: throw apiError(
                 HttpStatus.UNPROCESSABLE_ENTITY,
                 "Invalid flags (expected one or more of N/S/E/W): $raw",
                 code = "invalid_flags",
@@ -666,11 +665,11 @@ class RailwayApiHandler : KoinComponent {
 
     private fun requireLineType(raw: String): LineType =
         runCatching { LineType.valueOf(raw) }.getOrNull()
-            ?: throw HttpError(HttpStatus.UNPROCESSABLE_ENTITY, "Invalid lineType: $raw", code = "invalid_line_type")
+            ?: throw apiError(HttpStatus.UNPROCESSABLE_ENTITY, "Invalid lineType: $raw", code = "invalid_line_type")
 
     private fun requireWorld(name: String): org.bukkit.World =
         Bukkit.getWorld(name)
-            ?: throw HttpError(HttpStatus.UNPROCESSABLE_ENTITY, "World not found: $name", code = "world_not_found")
+            ?: throw apiError(HttpStatus.UNPROCESSABLE_ENTITY, "World not found: $name", code = "world_not_found")
 
     /**
      * 路線の端点となる駅を決める。明示指定があればそれを、無ければ座標の最寄り駅を使う
@@ -680,7 +679,7 @@ class RailwayApiHandler : KoinComponent {
         if (raw != null) return requireStation(raw)
         val world = requireWorld(worldName)
         return StationUtils.nearStation(point.toLocation(world))
-            ?: throw HttpError(
+            ?: throw apiError(
                 HttpStatus.NOT_FOUND,
                 "No station near ${point.x},${point.y},${point.z}",
                 code = "station_not_found",
@@ -690,7 +689,7 @@ class RailwayApiHandler : KoinComponent {
     /** `#RRGGBB` を [Color] にする。 */
     private fun parseColor(raw: String): Color =
         runCatching { Color.decode(if (raw.startsWith("#")) raw else "#$raw") }.getOrNull()
-            ?: throw HttpError(
+            ?: throw apiError(
                 HttpStatus.UNPROCESSABLE_ENTITY, "Invalid color (expected #RRGGBB): $raw", code = "invalid_color"
             )
 
